@@ -1,0 +1,13 @@
+{
+  "name": "homerun-records",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Homerun Records – Vinyl-Shop mit Admin-Bereich, CSV-Import und PayPal",
+  "dependencies": {
+    "@neondatabase/serverless": "^1.0.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

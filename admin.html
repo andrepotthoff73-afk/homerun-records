@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Admin – Homerun Records</title>
+  <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/assets/style.css">
+  <style>
+    body { background: var(--bg-2); }
+    .admin-bar { background: var(--head); color: #fff; }
+    .admin-bar .wrap { display: flex; align-items: center; gap: 16px; height: 56px; }
+    .admin-bar .brand svg { width: 28px; height: 28px; }
+    .admin-bar .brand-name { font-size: 1rem; }
+    .admin-bar .tag { background: var(--accent); font-size: .7rem; font-weight: 700; padding: 2px 7px; border-radius: 4px; text-transform: uppercase; letter-spacing: .06em; }
+    .admin-bar .right { margin-left: auto; display: flex; gap: 14px; align-items: center; }
+    .admin-bar a, .admin-bar button.link { color: #d4d4d8; background: none; border: 0; cursor: pointer; font-size: .9rem; padding: 0; }
+    .tabs { background: #fff; border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 20; }
+    .tabs .wrap { display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; }
+    .tabs button { border: 0; background: none; padding: 14px 14px 12px; font-weight: 600; color: var(--ink-2); cursor: pointer; border-bottom: 3px solid transparent; white-space: nowrap; }
+    .tabs button.active { color: var(--ink); border-bottom-color: var(--accent); }
+    .panel { padding: 24px 0 56px; }
+    .card-box { background: #fff; border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; margin-bottom: 18px; }
+    .card-box h2 { font-size: 1.05rem; }
+    .kpis { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 14px; margin-bottom: 18px; }
+    .kpi { background: #fff; border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; }
+    .kpi span { font-size: .75rem; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-3); font-weight: 700; }
+    .kpi b { display: block; font-size: 1.6rem; font-weight: 800; margin-top: 4px; }
+    .kpi small { color: var(--ink-2); }
+    .checklist { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
+    .checklist li { display: flex; gap: 10px; align-items: baseline; }
+    .dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; background: var(--line-2); transform: translateY(1px); }
+    .dot.ok { background: var(--ok); } .dot.no { background: var(--accent); } .dot.warn { background: var(--warn); }
+    .drop { display: block; border: 2px dashed var(--line-2); border-radius: var(--radius); padding: 36px 16px; text-align: center; background: var(--bg-2); cursor: pointer; transition: .15s; }
+    .drop.over, .drop:hover { border-color: var(--accent); background: var(--accent-soft); }
+    .drop input { display: none; }
+    .form-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px 16px; }
+    .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius); background: #fff; }
+    table.t { width: 100%; border-collapse: collapse; font-size: .87rem; }
+    table.t th { text-align: left; font-size: .74rem; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-3); padding: 10px 10px; background: var(--bg-2); border-bottom: 1px solid var(--line); white-space: nowrap; }
+    table.t td { padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+    table.t tr:last-child td { border-bottom: 0; }
+    table.t tr.sel td { background: #fff8f7; }
+    .thumb { width: 44px; height: 44px; border-radius: 3px; overflow: hidden; background: #1b1b1b; }
+    .thumb img { width: 100%; height: 100%; object-fit: cover; }
+    .st { display: inline-block; font-size: .72rem; font-weight: 700; padding: 2px 8px; border-radius: 999px; text-transform: uppercase; letter-spacing: .04em; white-space: nowrap; }
+    .st.available { background: var(--ok-soft); color: var(--ok); }
+    .st.sold { background: #27272a; color: #fff; }
+    .st.draft { background: var(--warn-soft); color: var(--warn); }
+    .st.reserved { background: #e8eefb; color: var(--link); }
+    .st.completed { background: var(--ok-soft); color: var(--ok); }
+    .st.failed { background: var(--accent-soft); color: var(--accent-ink); }
+    .st.created { background: var(--bg-3); color: var(--ink-2); }
+    .price-in { width: 84px; padding: 5px 6px; text-align: right; }
+    .toolbar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+    .toolbar .input { max-width: 340px; }
+    .toolbar .select { width: auto; }
+    .bulk { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; background: var(--ink); color: #fff; padding: 10px 14px; border-radius: var(--radius); margin-bottom: 12px; }
+    .bulk .btn { border-color: #3f3f46; }
+    .progress { height: 10px; background: var(--bg-3); border-radius: 999px; overflow: hidden; }
+    .progress div { height: 100%; width: 0; background: var(--accent); transition: width .2s; }
+    .log { font-family: ui-monospace, Consolas, monospace; font-size: .8rem; background: var(--bg-2); border-radius: 6px; padding: 10px; max-height: 220px; overflow: auto; white-space: pre-wrap; margin-top: 10px; }
+    .login { max-width: 380px; margin: 10vh auto; background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 28px; box-shadow: var(--shadow); display: grid; gap: 14px; }
+    .login .brand { color: var(--ink); justify-content: center; }
+    .row-actions { display: flex; gap: 6px; }
+    @media (max-width: 700px) {
+      table.t .hide-m { display: none; }
+      .admin-bar .hide-m { display: none; }
+    }
+  </style>
+  <script src="/assets/common.js"></script>
+  <script src="/assets/admin.js" defer></script>
+</head>
+<body>
+  <!-- Login -->
+  <form class="login hidden" id="login">
+    <a class="brand" href="/" id="login-brand"></a>
+    <h1 style="font-size:1.25rem;text-align:center;margin:0">Admin-Bereich</h1>
+    <label class="field">Passwort
+      <input class="input" type="password" name="password" autocomplete="current-password" required autofocus>
+    </label>
+    <div id="login-msg"></div>
+    <button class="btn btn-primary btn-lg">Anmelden</button>
+  </form>
+
+  <!-- Admin -->
+  <div id="app" class="hidden">
+    <div class="admin-bar"><div class="wrap">
+      <a class="brand" href="/" id="bar-brand"></a>
+      <span class="tag">Admin</span>
+      <div class="right">
+        <a href="/" target="_blank" class="hide-m">Shop ansehen ↗</a>
+        <button class="link" id="logout">Abmelden</button>
+      </div>
+    </div></div>
+    <nav class="tabs"><div class="wrap">
+      <button data-tab="overview" class="active">Übersicht</button>
+      <button data-tab="import">CSV-Import</button>
+      <button data-tab="records">Platten &amp; Verkauft</button>
+      <button data-tab="orders">Bestellungen</button>
+      <button data-tab="tools">Werkzeuge</button>
+    </div></nav>
+
+    <main class="wrap">
+      <!-- Übersicht -->
+      <section class="panel" data-panel="overview">
+        <div class="kpis" id="kpis"></div>
+        <div class="card-box">
+          <h2>Einrichtung</h2>
+          <ul class="checklist" id="checklist"></ul>
+        </div>
+      </section>
+
+      <!-- Import -->
+      <section class="panel hidden" data-panel="import">
+        <div class="card-box">
+          <h2>1. CSV-Liste hochladen</h2>
+          <p class="muted small" style="margin-top:0">Ziehe eine CSV-Datei hierher (Export deiner Sammlung oder deines Inventars). Bereits importierte Platten werden erkannt und nur aktualisiert – nichts wird doppelt angelegt.</p>
+          <label class="drop" id="drop">
+            <input type="file" accept=".csv,text/csv" id="file">
+            <strong>CSV-Datei auswählen</strong> oder hierher ziehen
+            <div class="small muted" id="file-info" style="margin-top:6px">Komma, Semikolon oder Tab als Trennzeichen</div>
+          </label>
+        </div>
+
+        <div id="import-config" class="hidden">
+          <div class="card-box">
+            <h2>2. Preise</h2>
+            <div class="form-grid">
+              <label class="field">Rabatt auf Ø-Marktpreis (%)
+                <input class="input" type="number" id="discount" value="10" min="0" max="90" step="1">
+              </label>
+              <label class="field">Mindestpreis (€)
+                <input class="input" type="number" id="min-price" value="0" min="0" step="0.5">
+              </label>
+              <label class="field">Name der Liste
+                <input class="input" id="batch" placeholder="z. B. Regal 3 – Jazz">
+              </label>
+            </div>
+          </div>
+          <div class="card-box">
+            <h2>3. Spalten zuordnen</h2>
+            <p class="muted small" style="margin-top:0">Die Spalten wurden automatisch erkannt. Wichtig ist vor allem <strong>„Ø Marktpreis“</strong>: Daraus wird dein Verkaufspreis berechnet. Platten ohne Preis werden als <em>Entwurf</em> gespeichert und sind im Shop nicht sichtbar, bis du einen Preis einträgst.</p>
+            <div class="form-grid" id="mapping"></div>
+          </div>
+          <div class="card-box">
+            <h2>4. Vorschau &amp; Import</h2>
+            <div id="summary" style="margin-bottom:12px"></div>
+            <div class="table-wrap"><table class="t" id="preview"></table></div>
+            <div style="display:flex;gap:12px;align-items:center;margin-top:16px;flex-wrap:wrap">
+              <button class="btn btn-primary btn-lg" id="do-import">Import starten</button>
+              <div style="flex:1;min-width:200px" class="hidden" id="prog-wrap">
+                <div class="progress"><div id="prog"></div></div>
+                <div class="small muted" id="prog-text" style="margin-top:4px"></div>
+              </div>
+            </div>
+            <div class="log hidden" id="log"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Platten -->
+      <section class="panel hidden" data-panel="records">
+        <form class="toolbar" id="rec-filter">
+          <input class="input" name="q" placeholder="Suchen: Künstler, Titel, Kat.-Nr., ID …" type="search">
+          <select class="select" name="status">
+            <option value="">Alle Status</option>
+            <option value="available">Verfügbar</option>
+            <option value="draft">Entwurf (ohne Preis/versteckt)</option>
+            <option value="reserved">Reserviert</option>
+            <option value="sold">Verkauft</option>
+          </select>
+          <select class="select" name="sort">
+            <option value="new">Neueste</option>
+            <option value="artist">Künstler A–Z</option>
+            <option value="price">Preis absteigend</option>
+            <option value="sold">Zuletzt verkauft</option>
+          </select>
+          <button class="btn">Suchen</button>
+          <span class="small muted" id="rec-count"></span>
+        </form>
+        <div class="bulk hidden" id="bulk">
+          <strong id="bulk-n"></strong>
+          <button class="btn btn-sm btn-ok" data-bulk="sold">Als verkauft markieren</button>
+          <button class="btn btn-sm" data-bulk="available">Wieder verfügbar</button>
+          <button class="btn btn-sm" data-bulk="draft">Verstecken</button>
+          <button class="btn btn-sm" data-bulk="delete">Löschen</button>
+        </div>
+        <div class="table-wrap"><table class="t" id="rec-table"></table></div>
+        <nav class="pager" id="rec-pager"></nav>
+      </section>
+
+      <!-- Bestellungen -->
+      <section class="panel hidden" data-panel="orders">
+        <div class="table-wrap"><table class="t" id="orders"></table></div>
+      </section>
+
+      <!-- Werkzeuge -->
+      <section class="panel hidden" data-panel="tools">
+        <div class="card-box">
+          <h2>Alle Preise neu berechnen</h2>
+          <p class="muted small" style="margin-top:0">Berechnet den Verkaufspreis aller verfügbaren Platten und Entwürfe neu aus dem gespeicherten Ø-Marktpreis. Von Hand geänderte Preise bleiben unverändert.</p>
+          <div class="toolbar">
+            <label class="field" style="flex-direction:row;display:flex;align-items:center;gap:8px">Rabatt (%)
+              <input class="input" type="number" id="reprice-discount" value="10" min="0" max="90" style="width:90px">
+            </label>
+            <button class="btn btn-dark" id="reprice">Neu berechnen</button>
+          </div>
+        </div>
+        <div class="card-box">
+          <h2>Cover &amp; Tracklisten laden</h2>
+          <p class="muted small" style="margin-top:0">Lädt für alle Platten mit Release-ID Cover, Trackliste, Genre und Land. Erst danach findet die Track-Suche die Platte. Es sind etwa 60 Abfragen pro Minute erlaubt – bei vielen Platten dauert das (20.000 Platten ≈ 6 Stunden). Lass diesen Tab einfach offen; du kannst jederzeit stoppen und später weitermachen. Cover werden übrigens auch automatisch geladen, sobald jemand eine Platte im Shop ansieht.</p>
+          <div class="toolbar">
+            <button class="btn btn-dark" id="covers">Cover &amp; Tracklisten laden</button>
+            <span class="small muted" id="covers-text"></span>
+          </div>
+          <div class="progress"><div id="covers-prog"></div></div>
+        </div>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

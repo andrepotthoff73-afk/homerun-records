@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Erweiterte Suche – Homerun Records</title>
+  <meta name="description" content="Schallplatten gezielt finden: nach Künstler, Album, Track, Label, Katalognummer, Format, Genre, Land, Jahr, Zustand und Preis.">
+  <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/assets/style.css">
+  <script src="/assets/common.js"></script>
+  <script src="/assets/suche.js" defer></script>
+</head>
+<body>
+  <div id="site-header"></div>
+  <main class="wrap adv">
+    <nav class="crumbs"><a href="/">Shop</a> › Erweiterte Suche</nav>
+    <div class="page-head" style="padding-top:4px">
+      <h1>Erweiterte Suche</h1>
+      <p class="muted" style="margin:0">Fülle nur die Felder aus, die du brauchst. Alle Angaben werden kombiniert.</p>
+    </div>
+
+    <form class="adv-form" id="adv" action="/" method="get">
+      <div class="adv-section">
+        <h2>Allgemein</h2>
+        <div class="adv-row">
+          <label for="f-q">Suchbegriff</label>
+          <input class="input" id="f-q" name="q" placeholder="Durchsucht alle Felder">
+        </div>
+      </div>
+
+      <div class="adv-section">
+        <h2>Veröffentlichung</h2>
+        <div class="adv-row">
+          <label for="f-artist">Künstler</label>
+          <input class="input" id="f-artist" name="artist" placeholder="z. B. Miles Davis">
+        </div>
+        <div class="adv-row">
+          <label for="f-title">Album / Titel</label>
+          <input class="input" id="f-title" name="title" placeholder="z. B. Kind Of Blue">
+        </div>
+        <div class="adv-row">
+          <label for="f-track">Track</label>
+          <input class="input" id="f-track" name="track" placeholder="z. B. So What">
+        </div>
+        <div class="adv-row">
+          <label for="f-label">Label</label>
+          <input class="input" id="f-label" name="label" placeholder="z. B. Blue Note">
+        </div>
+        <div class="adv-row">
+          <label for="f-catno">Katalognummer</label>
+          <input class="input" id="f-catno" name="catno" placeholder="z. B. SHVL 804">
+          <span class="hint">Leerzeichen und Bindestriche werden ignoriert.</span>
+        </div>
+        <div class="adv-row">
+          <label for="f-format">Format</label>
+          <select class="select" id="f-format" name="format">
+            <option value="">Alle Formate</option>
+            <option value="LP">LP</option>
+            <option value='12"'>12"</option>
+            <option value='10"'>10"</option>
+            <option value='7"'>7"</option>
+            <option value="Album">Album</option>
+            <option value="Single">Single</option>
+            <option value="EP">EP</option>
+            <option value="Maxi">Maxi-Single</option>
+            <option value="Compilation">Compilation</option>
+            <option value="Box">Box Set</option>
+            <option value="Picture Disc">Picture Disc</option>
+            <option value="Mono">Mono</option>
+            <option value="Promo">Promo</option>
+            <option value="RE">Wiederveröffentlichung (RE)</option>
+            <option value="Ltd">Limitiert</option>
+            <option value="Gatefold">Klappcover (Gatefold)</option>
+          </select>
+        </div>
+        <div class="adv-row">
+          <label for="f-genre">Genre / Stil</label>
+          <input class="input" id="f-genre" name="genre" list="genres" placeholder="z. B. Jazz, Krautrock, Disco">
+          <datalist id="genres">
+            <option value="Rock"><option value="Pop"><option value="Jazz"><option value="Electronic"><option value="Funk / Soul">
+            <option value="Hip Hop"><option value="Blues"><option value="Reggae"><option value="Classical"><option value="Folk, World, & Country">
+            <option value="Latin"><option value="Stage & Screen"><option value="Schlager"><option value="Krautrock"><option value="Punk">
+            <option value="Disco"><option value="New Wave"><option value="Prog Rock"><option value="Psychedelic Rock"><option value="Hard Rock">
+            <option value="Heavy Metal"><option value="Synth-pop"><option value="House"><option value="Techno"><option value="Soundtrack">
+          </datalist>
+        </div>
+        <div class="adv-row">
+          <label for="f-country">Land</label>
+          <select class="select" id="f-country" name="country">
+            <option value="">Alle Länder</option>
+            <option value="Germany">Deutschland</option>
+            <option value="UK">Großbritannien</option>
+            <option value="US">USA</option>
+            <option value="Europe">Europa</option>
+            <option value="France">Frankreich</option>
+            <option value="Netherlands">Niederlande</option>
+            <option value="Italy">Italien</option>
+            <option value="Spain">Spanien</option>
+            <option value="Austria">Österreich</option>
+            <option value="Switzerland">Schweiz</option>
+            <option value="Sweden">Schweden</option>
+            <option value="Belgium">Belgien</option>
+            <option value="Canada">Kanada</option>
+            <option value="Japan">Japan</option>
+            <option value="Australia">Australien</option>
+            <option value="Jamaica">Jamaika</option>
+            <option value="Brazil">Brasilien</option>
+          </select>
+        </div>
+        <div class="adv-row">
+          <label for="f-year-from">Erscheinungsjahr</label>
+          <div class="adv-pair">
+            <input class="input" id="f-year-from" name="year_from" inputmode="numeric" placeholder="von" maxlength="4" aria-label="Jahr von">
+            <span class="muted">bis</span>
+            <input class="input" id="f-year-to" name="year_to" inputmode="numeric" placeholder="bis" maxlength="4" aria-label="Jahr bis">
+          </div>
+        </div>
+      </div>
+
+      <div class="adv-section">
+        <h2>Zustand &amp; Preis</h2>
+        <div class="adv-row">
+          <label for="f-cond">Zustand Platte</label>
+          <select class="select" id="f-cond" name="cond">
+            <option value="">Alle</option>
+            <option value="M">Mint (M)</option>
+            <option value="NM or M-">Near Mint (NM oder M-)</option>
+            <option value="VG+">Very Good Plus (VG+)</option>
+            <option value="VG">Very Good (VG)</option>
+            <option value="G+">Good Plus (G+)</option>
+            <option value="G">Good (G)</option>
+          </select>
+        </div>
+        <div class="adv-row">
+          <label for="f-sleeve">Zustand Hülle</label>
+          <select class="select" id="f-sleeve" name="sleeve">
+            <option value="">Alle</option>
+            <option value="M">Mint (M)</option>
+            <option value="NM or M-">Near Mint (NM oder M-)</option>
+            <option value="VG+">Very Good Plus (VG+)</option>
+            <option value="VG">Very Good (VG)</option>
+            <option value="G+">Good Plus (G+)</option>
+            <option value="G">Good (G)</option>
+            <option value="Generic">Neutrale Hülle (Generic)</option>
+            <option value="No Cover">Ohne Hülle</option>
+          </select>
+        </div>
+        <div class="adv-row">
+          <label for="f-min">Preis (€)</label>
+          <div class="adv-pair">
+            <input class="input" id="f-min" name="min" inputmode="decimal" placeholder="von" aria-label="Preis von">
+            <span class="muted">bis</span>
+            <input class="input" id="f-max" name="max" inputmode="decimal" placeholder="bis" aria-label="Preis bis">
+          </div>
+        </div>
+        <div class="adv-row">
+          <label for="f-sort">Sortieren nach</label>
+          <select class="select" id="f-sort" name="sort">
+            <option value="new">Neueste zuerst</option>
+            <option value="artist">Künstler A–Z</option>
+            <option value="title">Titel A–Z</option>
+            <option value="price_asc">Preis aufsteigend</option>
+            <option value="price_desc">Preis absteigend</option>
+            <option value="year">Erscheinungsjahr (neueste)</option>
+            <option value="year_asc">Erscheinungsjahr (älteste)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="adv-actions">
+        <button class="btn btn-primary btn-lg" type="submit">Suchen</button>
+        <button class="btn btn-lg" type="button" id="adv-reset">Zurücksetzen</button>
+        <span class="live" id="live" aria-live="polite"></span>
+      </div>
+    </form>
+  </main>
+  <div id="site-footer"></div>
+</body>
+</html>

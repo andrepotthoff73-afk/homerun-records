@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Homerun Records – fast alle Schallplatten 10 % günstiger</title>
+  <meta name="description" content="Über 20.000 Vinyl-Schallplatten aus einer privaten Sammlung. Fast alle Platten 10 % günstiger als auf jeder anderen Seite. Sicher bezahlen mit PayPal.">
+  <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/assets/style.css">
+  <script src="/assets/common.js"></script>
+  <script src="/assets/shop.js" defer></script>
+</head>
+<body>
+  <div id="site-header"></div>
+
+  <main>
+    <section class="strip">
+      <div class="wrap">
+        <div class="strip-head">
+          <div>
+            <h1>Fast alle Platten 10&nbsp;% günstiger als auf jeder anderen Seite</h1>
+            <p>Eine Sammlung mit 20.000 Schallplatten – ehrlich gegradet nach Goldmine-Standard, sicher bezahlt mit PayPal.</p>
+          </div>
+          <div class="strip-stats">
+            <div class="stat"><b id="stat-stock">–</b><span>verfügbar</span></div>
+            <div class="stat"><b>−10&nbsp;%</b><span>günstiger</span></div>
+            <div class="stat"><b>PayPal</b><span>sicher bezahlen</span></div>
+          </div>
+        </div>
+        <form class="quick-search" id="quick-search" role="search" aria-label="Plattensuche">
+          <label class="qs-field">
+            <span>Künstler</span>
+            <input class="input" name="artist" placeholder="z. B. Pink Floyd" autocomplete="off">
+          </label>
+          <label class="qs-field">
+            <span>Album / Titel</span>
+            <input class="input" name="title" placeholder="z. B. Wish You Were Here" autocomplete="off">
+          </label>
+          <label class="qs-field">
+            <span>Track</span>
+            <input class="input" name="track" placeholder="z. B. Shine On You Crazy Diamond" autocomplete="off">
+          </label>
+          <div class="qs-actions">
+            <button class="btn btn-primary">Suchen</button>
+            <a class="qs-adv" href="/suche" id="adv-link">Erweiterte Suche</a>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <div class="wrap shop">
+      <aside class="filters" id="filters" aria-label="Filter">
+        <div class="filter-group">
+          <h3>Format</h3>
+          <div class="chips" data-filter="format">
+            <button class="chip" data-v="">Alle</button>
+            <button class="chip" data-v="LP">LP</button>
+            <button class="chip" data-v='12"'>12"</button>
+            <button class="chip" data-v='10"'>10"</button>
+            <button class="chip" data-v='7"'>7"</button>
+            <button class="chip" data-v="Box">Box Set</button>
+            <button class="chip" data-v="EP">EP</button>
+            <button class="chip" data-v="Album">Album</button>
+          </div>
+        </div>
+        <div class="filter-group">
+          <h3>Zustand der Platte</h3>
+          <div class="chips" data-filter="cond">
+            <button class="chip" data-v="">Alle</button>
+            <button class="chip" data-v="M" title="Mint">M</button>
+            <button class="chip" data-v="NM or M-" title="Near Mint">NM</button>
+            <button class="chip" data-v="VG+" title="Very Good Plus">VG+</button>
+            <button class="chip" data-v="VG" title="Very Good">VG</button>
+            <button class="chip" data-v="G+" title="Good Plus">G+</button>
+          </div>
+        </div>
+        <div class="filter-group">
+          <h3>Preis (€)</h3>
+          <form class="range" id="price-form">
+            <input class="input" name="min" inputmode="decimal" placeholder="von" aria-label="Preis von">
+            <span class="muted">–</span>
+            <input class="input" name="max" inputmode="decimal" placeholder="bis" aria-label="Preis bis">
+            <button class="btn btn-sm" aria-label="Preisfilter anwenden">OK</button>
+          </form>
+        </div>
+        <div class="filter-group">
+          <button class="btn btn-sm" id="reset">Alle Filter zurücksetzen</button>
+        </div>
+      </aside>
+
+      <section aria-live="polite">
+        <div class="results-bar">
+          <button class="btn btn-sm filter-toggle" id="filter-toggle">Filter</button>
+          <div class="count" id="count">Lade …</div>
+          <div class="tools">
+            <label class="sr-only" for="sort">Sortierung</label>
+            <select class="select" id="sort">
+              <option value="new">Neueste zuerst</option>
+              <option value="price_asc">Preis aufsteigend</option>
+              <option value="price_desc">Preis absteigend</option>
+              <option value="artist">Künstler A–Z</option>
+              <option value="title">Titel A–Z</option>
+              <option value="year">Erscheinungsjahr</option>
+            </select>
+            <div class="view-toggle" role="group" aria-label="Ansicht">
+              <button data-view="list" title="Liste" aria-label="Listenansicht"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg></button>
+              <button data-view="grid" title="Raster" aria-label="Rasteransicht"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></button>
+            </div>
+          </div>
+        </div>
+        <div class="active-filters" id="active"></div>
+        <div id="results" class="list"></div>
+        <nav class="pager" id="pager" aria-label="Seiten"></nav>
+      </section>
+    </div>
+  </main>
+
+  <div id="site-footer"></div>
+</body>
+</html>
