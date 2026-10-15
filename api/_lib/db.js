@@ -40,6 +40,19 @@ const SCHEMA = [
   )`,
   `ALTER TABLE records ADD COLUMN IF NOT EXISTS tracks text`,
   `ALTER TABLE records ADD COLUMN IF NOT EXISTS country text`,
+  // Automatische Preis-/Cover-Ermittlung: Warteschlange und Einzelpreise
+  `ALTER TABLE records ADD COLUMN IF NOT EXISTS enrich_status text`,
+  `ALTER TABLE records ADD COLUMN IF NOT EXISTS enrich_note text`,
+  `ALTER TABLE records ADD COLUMN IF NOT EXISTS price_low numeric(10,2)`,
+  `ALTER TABLE records ADD COLUMN IF NOT EXISTS price_mid numeric(10,2)`,
+  `ALTER TABLE records ADD COLUMN IF NOT EXISTS price_high numeric(10,2)`,
+  `ALTER TABLE records ADD COLUMN IF NOT EXISTS lowest_offer numeric(10,2)`,
+  `CREATE INDEX IF NOT EXISTS records_enrich_idx ON records (enrich_status, id)`,
+  `CREATE TABLE IF NOT EXISTS release_cache (
+    release_id bigint PRIMARY KEY,
+    data       jsonb NOT NULL,
+    fetched_at timestamptz NOT NULL DEFAULT now()
+  )`,
   `CREATE INDEX IF NOT EXISTS records_status_idx ON records (status, created_at DESC)`,
   `CREATE INDEX IF NOT EXISTS records_price_idx ON records (status, price)`,
   `CREATE INDEX IF NOT EXISTS records_artist_idx ON records (lower(artist))`,

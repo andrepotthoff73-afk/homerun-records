@@ -102,6 +102,20 @@ beispiel-import.csv        Beispieldatei zum Testen des Imports
 
 ---
 
+## Erfassung in einem Zug (direkt im Admin-Bereich) – empfohlen
+
+1. Admin → **CSV-Import** → Discogs-CSV hineinziehen.
+2. Häkchen **„Preise, Cover & Tracklisten automatisch ermitteln“** ist gesetzt → Rabatt (10 %) und Mindestpreis prüfen.
+3. **„Importieren & Preise ermitteln“** klicken. Die Platten werden sofort als Entwurf angelegt; danach wechselt die Seite in den Reiter **„Preise & Cover“** und ergänzt jede Platte: Preisvorschläge VG/VG+/NM → Durchschnitt minus Rabatt = Verkaufspreis, Cover (im eigenen Bildspeicher), Trackliste, Genre, Land. Mit Preis geht die Platte automatisch online.
+4. **Fenster geöffnet lassen** (ca. 20 Platten pro Minute). Anhalten und später weitermachen ist jederzeit möglich – die Warteschlange bleibt in der Datenbank gespeichert.
+
+Voraussetzungen in Vercel: `DISCOGS_TOKEN` gesetzt, Verkäufer-Einstellungen im Discogs-Konto ausgefüllt (Währung EUR), **Blob-Speicher** verbunden.
+Einzelne Platten neu bepreisen: Admin → Platten → anhaken → **„Preise & Cover neu ermitteln“**.
+
+Das lokale Preis-Tool (siehe unten) bleibt als Alternative erhalten, z. B. um nur eine Preisliste als CSV zu erzeugen.
+
+---
+
 ## Preis-Tool (Preise & Cover automatisch ermitteln)
 
 `Preis-Tool-starten.bat` doppelklicken → im Browser öffnet sich http://localhost:4410.

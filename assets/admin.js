@@ -52,10 +52,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (b) show(b.dataset.tab);
   });
 
+  document.addEventListener('click', (e) => {
+    const a = e.target.closest('[data-goto]');
+    if (!a) return;
+    e.preventDefault();
+    show(a.dataset.goto);
+  });
+
   // ---------- Übersicht ----------
   loaders.overview = async () => {
     try {
       const s = await call('/api/admin?action=stats');
+      setBadge(s.enrichPending);
       $('kpis').innerHTML = [
         ['Im Shop', num(s.available), `Warenwert ${eur(s.availableValue)}`],
         ['Verkauft', num(s.sold), `Umsatz ${eur(s.soldValue)}`],
@@ -75,6 +83,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         s.blob
           ? item('ok', 'Bildspeicher verbunden – Cover aus dem Preis-Tool werden gespeichert')
           : item('warn', 'Optional: Blob-Bildspeicher in Vercel verbinden, damit das Preis-Tool Cover hochladen kann'),
+        s.enrichPending ? item('warn', `${num(s.enrichPending)} Platte(n) warten auf Preise &amp; Cover – <a href="#" data-goto="enrich">jetzt ermitteln</a>`) : '',
+        s.enrichErrors ? item('no', `${num(s.enrichErrors)} Platte(n) konnten nicht ermittelt werden – <a href="#" data-goto="enrich">erneut versuchen</a>`) : '',
         s.reserved ? item('warn', `${num(s.reserved)} Platte(n) reserviert (laufende Zahlung)`) : '',
       ].join('');
     } catch (e) {
@@ -222,19 +232,24 @@ document.addEventListener('DOMContentLoaded', async () => {
     const valid = rows.filter((r) => r.artist && r.title);
     const priced = valid.filter((r) => r.avg_price).length;
     const missing = map.artist == null || map.title == null;
+    const auto = $('auto').checked;
+    const skippedTxt = rows.length - valid.length ? ` · ${num(rows.length - valid.length)} Zeilen ohne Künstler/Titel werden übersprungen` : '';
     $('summary').innerHTML = missing
       ? '<div class="notice err">Bitte ordne mindestens „Künstler“ und „Titel“ zu.</div>'
-      : `<div class="notice ${priced ? 'ok' : 'warn'}"><strong>${num(valid.length)}</strong> Platten erkannt ·
+      : auto
+        ? `<div class="notice ok"><strong>${num(valid.length)}</strong> Platten erkannt → werden importiert und anschließend automatisch mit Preis, Cover und Trackliste ergänzt (ca. ${num(Math.max(1, Math.ceil(valid.length / 20)))} Min.)${skippedTxt}</div>`
+        : `<div class="notice ${priced ? 'ok' : 'warn'}"><strong>${num(valid.length)}</strong> Platten erkannt ·
            <strong>${num(priced)}</strong> mit Marktpreis → gehen direkt online ·
-           <strong>${num(valid.length - priced)}</strong> ohne Preis → werden als Entwurf gespeichert
-           ${rows.length - valid.length ? ` · ${num(rows.length - valid.length)} Zeilen ohne Künstler/Titel werden übersprungen` : ''}</div>`;
+           <strong>${num(valid.length - priced)}</strong> ohne Preis → werden als Entwurf gespeichert${skippedTxt}</div>`;
     $('do-import').disabled = missing;
+    $('do-import').textContent = auto ? 'Importieren & Preise ermitteln' : 'Import starten';
     $('preview').innerHTML = `<thead><tr><th>Künstler</th><th>Titel</th><th class="hide-m">Format</th><th class="hide-m">Zustand</th><th>Ø Marktpreis</th><th>Dein Preis</th></tr></thead>
       <tbody>${valid.slice(0, 10).map((r) => `<tr>
         <td>${esc(r.artist)}</td><td>${esc(r.title)}</td><td class="hide-m">${esc(r.format)}</td><td class="hide-m">${esc(r.media_condition)}</td>
-        <td>${r.avg_price ? eur(r.avg_price) : '<span class="muted">–</span>'}</td>
-        <td><strong>${r.avg_price ? eur(calcPrice(r.avg_price, s)) : '<span class="st draft">Entwurf</span>'}</strong></td></tr>`).join('')}</tbody>`;
+        <td>${auto ? '<span class="muted">wird ermittelt</span>' : r.avg_price ? eur(r.avg_price) : '<span class="muted">–</span>'}</td>
+        <td><strong>${auto ? '<span class="muted">automatisch</span>' : r.avg_price ? eur(calcPrice(r.avg_price, s)) : '<span class="st draft">Entwurf</span>'}</strong></td></tr>`).join('')}</tbody>`;
   }
+  $('auto').addEventListener('change', renderPreview);
 
   $('do-import').addEventListener('click', async () => {
     const s = settingsNow();
@@ -253,7 +268,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       let ok = false;
       for (let attempt = 1; attempt <= 3 && !ok; attempt++) {
         try {
-          const r = await call('/api/admin?action=import', { body: { rows: chunk, discount: s.discount, minPrice: s.minPrice, batch: $('batch').value } });
+          const r = await call('/api/admin?action=import', { body: { rows: chunk, discount: s.discount, minPrice: s.minPrice, batch: $('batch').value, auto: $('auto').checked } });
           tot.inserted += r.inserted; tot.updated += r.updated; tot.skipped += r.skipped;
           ok = true;
         } catch (e) {
@@ -267,9 +282,115 @@ document.addEventListener('DOMContentLoaded', async () => {
       $('prog-text').textContent = `${num(done)} von ${num(rows.length)} verarbeitet`;
     }
     log.textContent += `Fertig: ${num(tot.inserted)} neu, ${num(tot.updated)} aktualisiert, ${num(tot.skipped)} übersprungen.\n`;
-    toast('Import abgeschlossen');
     btn.disabled = false;
+    if ($('auto').checked && tot.inserted + tot.updated > 0) {
+      // In einem Zug weiter: Preise & Cover ermitteln
+      $('e-discount').value = s.discount;
+      $('e-min').value = s.minPrice;
+      saveEnrichSettings();
+      toast('Import abgeschlossen – Preise & Cover werden jetzt ermittelt');
+      show('enrich');
+      startEnrich();
+    } else {
+      toast('Import abgeschlossen');
+    }
   });
+
+  // ---------- Preise & Cover ermitteln (Warteschlange) ----------
+  const en = { running: false, startCount: null, done: 0, started: 0, rows: [], wake: null };
+  try {
+    const saved = JSON.parse(localStorage.getItem('hr_enrich') || '{}');
+    if (saved.discount != null) { $('e-discount').value = saved.discount; $('discount').value = saved.discount; }
+    if (saved.minPrice != null) { $('e-min').value = saved.minPrice; $('min-price').value = saved.minPrice; }
+  } catch { /* ignorieren */ }
+  function saveEnrichSettings() {
+    try { localStorage.setItem('hr_enrich', JSON.stringify({ discount: $('e-discount').value, minPrice: $('e-min').value })); } catch { /* ignorieren */ }
+  }
+  ['e-discount', 'e-min'].forEach((id) => $(id).addEventListener('change', saveEnrichSettings));
+
+  function setBadge(n) {
+    const b = $('enrich-badge');
+    b.textContent = num(n);
+    b.classList.toggle('hidden', !n);
+  }
+
+  async function enrichStats() {
+    const s = await call('/api/admin?action=stats');
+    setBadge(s.enrichPending);
+    $('e-kpis').innerHTML = [
+      ['Warteschlange', num(s.enrichPending), s.enrichPending ? `ca. ${num(Math.max(1, Math.ceil(s.enrichPending / 20)))} Min.` : 'alles erledigt'],
+      ['Fehlgeschlagen', num(s.enrichErrors), s.enrichErrors ? 'siehe Platten-Liste' : '–'],
+      ['Diese Sitzung', num(en.done), 'Platten ergänzt'],
+      ['Bildspeicher', s.blob ? 'verbunden' : 'fehlt', s.blob ? 'Cover werden gespeichert' : 'Cover kommen vom Katalog'],
+    ].map(([k, v, sub]) => `<div class="kpi"><span>${k}</span><b>${v}</b><small>${sub}</small></div>`).join('');
+    $('e-warn').textContent = s.coverToken ? '' : 'Kein Katalog-Token gesetzt (DISCOGS_TOKEN, siehe README) – ohne Token gibt es keine Preisvorschläge und nur ca. 8 Platten pro Minute.';
+    return s;
+  }
+  loaders.enrich = () => { if (!en.running) enrichStats().catch(() => {}); };
+
+  function renderEnrichRows() {
+    const fmt = (v) => (v == null ? '–' : eur(v));
+    $('e-table').querySelector('tbody').innerHTML = en.rows.slice(0, 200).map((r) => `<tr>
+      <td><div class="thumb"><img src="${esc(r.cover_url || '/assets/vinyl.svg')}" alt="" loading="lazy" onerror="this.onerror=null;this.src='/assets/vinyl.svg'"></div></td>
+      <td><strong>${esc(r.artist)}</strong> – ${esc(r.title)}<div class="small muted">#${r.id} · <span class="st ${r.status || 'draft'}">${r.error ? 'Fehler' : ({ available: 'Im Shop', draft: 'Entwurf', sold: 'Verkauft', reserved: 'Reserviert' }[r.status] || r.status)}</span></div></td>
+      <td class="num hide-m">${fmt(r.low)}</td><td class="num hide-m">${fmt(r.mid)}</td><td class="num hide-m">${fmt(r.high)}</td>
+      <td class="num">${fmt(r.avg)}</td><td class="sale">${r.price != null ? eur(r.price) : '–'}</td>
+      <td class="hide-m e-note">${esc((r.notes || []).join(' · '))}</td>
+    </tr>`).join('');
+  }
+
+  async function startEnrich() {
+    if (en.running) { en.running = false; return; }
+    en.running = true;
+    en.started = Date.now();
+    en.startCount = null;
+    $('e-start').textContent = 'Anhalten';
+    try { en.wake = await navigator.wakeLock?.request('screen'); } catch { /* nicht unterstützt */ }
+    const body = () => ({ discount: Number($('e-discount').value) || 0, minPrice: Number(String($('e-min').value).replace(',', '.')) || 0 });
+    let sessionDone = 0;
+    while (en.running) {
+      const t0 = Date.now();
+      let r;
+      try {
+        r = await call('/api/admin?action=enrich', { body: body() });
+      } catch (e) {
+        $('e-status').textContent = `Fehler: ${e.message} – neuer Versuch in 20 Sekunden`;
+        if (e.status === 401) break;
+        await new Promise((res) => setTimeout(res, 20000));
+        continue;
+      }
+      if (r.done) { $('e-status').textContent = 'Fertig – alle Platten sind ergänzt.'; toast('Preise & Cover ermittelt'); break; }
+      if (en.startCount == null) en.startCount = r.remaining + (r.record ? 1 : 0);
+      setBadge(r.remaining);
+      if (r.record) {
+        en.rows.unshift(r.record);
+        en.done++;
+        sessionDone++;
+        renderEnrichRows();
+      }
+      const total = en.startCount || 1;
+      $('e-prog').style.width = `${Math.min(100, ((total - r.remaining) / total) * 100)}%`;
+      const perItem = (Date.now() - en.started) / Math.max(1, sessionDone);
+      $('e-status').textContent = r.wait
+        ? 'Katalog bremst – kurze Pause …'
+        : `${num(en.done)} ergänzt · noch ${num(r.remaining)} · ca. ${num(Math.max(1, Math.round((r.remaining * perItem) / 60000)))} Min.`;
+      // Tempo an das Abfrage-Limit des Katalogs anpassen (60 pro Minute, 3 pro Platte)
+      const pause = r.wait ? r.wait * 1000 : r.rate != null && r.rate < 6 ? 15000 : Math.max(0, 3100 - (Date.now() - t0));
+      await new Promise((res) => setTimeout(res, pause));
+      if (!r.remaining) { $('e-status').textContent = 'Fertig – alle Platten sind ergänzt.'; toast('Preise & Cover ermittelt'); break; }
+    }
+    en.running = false;
+    $('e-start').textContent = 'Ermittlung starten';
+    try { await en.wake?.release(); } catch { /* ignorieren */ }
+    enrichStats().catch(() => {});
+  }
+  $('e-start').addEventListener('click', startEnrich);
+  $('e-retry').addEventListener('click', async () => {
+    const r = await call('/api/admin?action=enrich-retry', { body: {} });
+    toast(`${num(r.changed)} Platte(n) wieder in der Warteschlange`);
+    enrichStats();
+  });
+  window.addEventListener('beforeunload', (e) => { if (en.running) { e.preventDefault(); e.returnValue = ''; } });
 
   // ---------- Platten ----------
   const rec = { page: 1, items: [], selected: new Set(), total: 0 };
@@ -374,7 +495,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   async function mutate(op, ids) {
     try {
       const r = await call('/api/admin?action=update', { body: { op, ids } });
-      const labels = { sold: 'als verkauft markiert', available: 'wieder verfügbar', draft: 'versteckt', delete: 'gelöscht' };
+      const labels = { sold: 'als verkauft markiert', available: 'wieder verfügbar', draft: 'versteckt', delete: 'gelöscht', enrich: 'für Preise & Cover vorgemerkt (Reiter „Preise & Cover“)' };
       toast(`${r.changed} Platte(n) ${labels[op] || 'geändert'}${op === 'available' && r.changed < ids.length ? ' (ohne Preis bleiben versteckt)' : ''}`);
       loadRecords();
     } catch (err) { toast(err.message); }

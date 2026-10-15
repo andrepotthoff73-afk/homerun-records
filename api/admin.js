@@ -3,7 +3,7 @@ import crypto from 'node:crypto';
 import { db, ensureSchema } from './_lib/db.js';
 import { send, intIds, isJson, likeEsc } from './_lib/util.js';
 import { isAdmin, checkPassword, passwordConfigured, setSession, clearSession } from './_lib/auth.js';
-import { fetchCover } from './_lib/katalog.js';
+import { fetchCover, enrichRecord, rateRemaining } from './_lib/katalog.js';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -26,6 +26,8 @@ export default async function handler(req, res) {
     if (post && action === 'update') return await update(req, res);
     if (post && action === 'reprice') return await reprice(req, res);
     if (post && action === 'cover') return await coverStep(res);
+    if (post && action === 'enrich') return await enrichStep(req, res);
+    if (post && action === 'enrich-retry') return await enrichRetry(res);
     if (post && action === 'upload-cover') return await uploadCover(req, res);
     send(res, 404, { error: 'Unbekannte Aktion' });
   } catch (e) {
@@ -49,10 +51,11 @@ async function login(req, res) {
 
 async function stats(res) {
   const sql = db();
-  const [byStatus, ord, covers] = await Promise.all([
+  const [byStatus, ord, covers, enrich] = await Promise.all([
     sql.query(`SELECT status, count(*)::int AS n, coalesce(sum(price), 0)::float AS value FROM records GROUP BY status`),
     sql.query(`SELECT count(*)::int AS n, coalesce(sum(total), 0)::float AS revenue FROM orders WHERE status = 'completed'`),
     sql.query(`SELECT count(*)::int AS n FROM records WHERE (cover_url IS NULL OR tracks IS NULL) AND release_id IS NOT NULL`),
+    sql.query(`SELECT count(*) FILTER (WHERE enrich_status = 'pending')::int AS pending, count(*) FILTER (WHERE enrich_status = 'error')::int AS errors FROM records`),
   ]);
   const s = Object.fromEntries(byStatus.map((r) => [r.status, r]));
   send(res, 200, {
@@ -65,6 +68,8 @@ async function stats(res) {
     orders: ord[0].n,
     revenue: ord[0].revenue,
     missingCovers: covers[0].n,
+    enrichPending: enrich[0].pending,
+    enrichErrors: enrich[0].errors,
     coverToken: Boolean(process.env.DISCOGS_TOKEN),
     blob: Boolean(process.env.BLOB_READ_WRITE_TOKEN),
     paypal: Boolean(process.env.PAYPAL_CLIENT_ID && process.env.PAYPAL_CLIENT_SECRET),
@@ -114,6 +119,7 @@ async function importRows(req, res) {
   const rows = Array.isArray(req.body?.rows) ? req.body.rows.slice(0, 1000) : [];
   const discount = Math.min(90, Math.max(0, Number(req.body?.discount ?? 10)));
   const minPrice = Math.max(0, Number(req.body?.minPrice ?? 0));
+  const auto = req.body?.auto === true;
   const batch = clean(req.body?.batch, 120);
 
   const cols = { key: [], rel: [], lst: [], artist: [], title: [], label: [], catno: [], format: [], released: [], genre: [],
@@ -150,8 +156,9 @@ async function importRows(req, res) {
 
   const result = await db().query(
     `INSERT INTO records (import_key, release_id, listing_id, artist, title, label, catno, format, released, genre,
-       media_condition, sleeve_condition, description, notes, avg_price, price, status, cover_url, thumb_url, batch, tracks, country)
-     SELECT k, rel, lst, artist, title, label, catno, format, released, genre, media, sleeve, descr, notes, avg, price, status, cover, cover, batch, tracks, country
+       media_condition, sleeve_condition, description, notes, avg_price, price, status, cover_url, thumb_url, batch, tracks, country, enrich_status)
+     SELECT k, rel, lst, artist, title, label, catno, format, released, genre, media, sleeve, descr, notes, avg, price, status, cover, cover, batch, tracks, country,
+            CASE WHEN $22::boolean THEN 'pending' END
      FROM unnest($1::text[], $2::bigint[], $3::text[], $4::text[], $5::text[], $6::text[], $7::text[], $8::text[], $9::text[],
                  $10::text[], $11::text[], $12::text[], $13::text[], $14::text[], $15::numeric[], $16::numeric[], $17::text[],
                  $18::text[], $19::text[], $20::text[], $21::text[])
@@ -170,10 +177,11 @@ async function importRows(req, res) {
        thumb_url = coalesce(EXCLUDED.thumb_url, records.thumb_url),
        tracks = coalesce(EXCLUDED.tracks, records.tracks),
        country = coalesce(EXCLUDED.country, records.country),
+       enrich_status = CASE WHEN $22::boolean AND records.status NOT IN ('sold', 'reserved') THEN 'pending' ELSE records.enrich_status END,
        updated_at = now()
      RETURNING (xmax = 0) AS inserted`,
     [cols.key, cols.rel, cols.lst, cols.artist, cols.title, cols.label, cols.catno, cols.format, cols.released, cols.genre,
-      cols.media, cols.sleeve, cols.descr, cols.notes, cols.avg, cols.price, cols.status, cols.cover, cols.batch, cols.tracks, cols.country],
+      cols.media, cols.sleeve, cols.descr, cols.notes, cols.avg, cols.price, cols.status, cols.cover, cols.batch, cols.tracks, cols.country, auto],
   );
   const inserted = result.filter((r) => r.inserted).length;
   send(res, 200, { inserted, updated: result.length - inserted, skipped });
@@ -192,6 +200,8 @@ async function update(req, res) {
                             WHERE id = ANY($1::int[]) AND price > 0 RETURNING id`, [ids]);
   } else if (op === 'draft') {
     rows = await sql.query(`UPDATE records SET status = 'draft', updated_at = now() WHERE id = ANY($1::int[]) RETURNING id`, [ids]);
+  } else if (op === 'enrich') {
+    rows = await sql.query(`UPDATE records SET enrich_status = 'pending', enrich_note = NULL WHERE id = ANY($1::int[]) AND status NOT IN ('sold', 'reserved') RETURNING id`, [ids]);
   } else if (op === 'delete') {
     rows = await sql.query(`DELETE FROM records WHERE id = ANY($1::int[]) RETURNING id`, [ids]);
   } else if (op === 'price') {
@@ -241,4 +251,30 @@ async function uploadCover(req, res) {
   const ext = type === 'image/jpeg' ? 'jpg' : type.split('/')[1];
   const blob = await put(`cover/${id}.${ext}`, buf, { access: 'public', contentType: type, addRandomSuffix: true });
   send(res, 200, { url: blob.url });
+}
+
+// Eine Platte aus der Warteschlange ergänzen (der Admin-Browser ruft das Platte für Platte auf)
+async function enrichStep(req, res) {
+  const discount = Math.min(90, Math.max(0, Number(req.body?.discount ?? 10)));
+  const minPrice = Math.max(0, Number(req.body?.minPrice ?? 0));
+  const sql = db();
+  const next = await sql.query(`SELECT id, release_id, artist, title, catno FROM records WHERE enrich_status = 'pending' ORDER BY id LIMIT 1`);
+  const count = async () => (await sql.query(`SELECT count(*)::int AS n FROM records WHERE enrich_status = 'pending'`))[0].n;
+  if (!next.length) return send(res, 200, { done: true, remaining: 0 });
+  const rec = next[0];
+  let result;
+  try {
+    result = await enrichRecord(rec, { discount, minPrice });
+  } catch (e) {
+    if (e.rateLimit) return send(res, 200, { wait: 60, remaining: await count(), rate: 0 });
+    // Als Fehler markieren, damit die Warteschlange nicht an einer Platte hängen bleibt („Erneut versuchen“ möglich)
+    await sql.query(`UPDATE records SET enrich_status = 'error', enrich_note = $2 WHERE id = $1`, [rec.id, e.message.slice(0, 200)]);
+    result = { notes: [e.message], error: true };
+  }
+  send(res, 200, { record: { id: rec.id, artist: rec.artist, title: rec.title, ...result }, remaining: await count(), rate: rateRemaining });
+}
+
+async function enrichRetry(res) {
+  const rows = await db().query(`UPDATE records SET enrich_status = 'pending', enrich_note = NULL WHERE enrich_status = 'error' RETURNING id`);
+  send(res, 200, { changed: rows.length });
 }

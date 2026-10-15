@@ -67,6 +67,12 @@
     .login { max-width: 380px; margin: 10vh auto; background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 28px; box-shadow: var(--shadow); display: grid; gap: 14px; }
     .login .brand { color: var(--ink); justify-content: center; }
     .row-actions { display: flex; gap: 6px; }
+    .auto-box { display: flex; gap: 12px; align-items: flex-start; background: var(--ok-soft); border: 1px solid #b9e0c8; border-radius: var(--radius); padding: 14px; margin-bottom: 14px; cursor: pointer; }
+    .auto-box input { margin-top: 4px; width: 18px; height: 18px; accent-color: var(--ok); flex-shrink: 0; }
+    .tabs .badge { margin-left: 4px; vertical-align: 1px; }
+    td.sale { font-weight: 800; color: var(--accent-ink); white-space: nowrap; }
+    td.num { white-space: nowrap; text-align: right; }
+    .e-note { color: var(--warn); font-size: .78rem; }
     @media (max-width: 700px) {
       table.t .hide-m { display: none; }
       .admin-bar .hide-m { display: none; }
@@ -100,6 +106,7 @@
     <nav class="tabs"><div class="wrap">
       <button data-tab="overview" class="active">Übersicht</button>
       <button data-tab="import">CSV-Import</button>
+      <button data-tab="enrich">Preise &amp; Cover <span class="badge hidden" id="enrich-badge" data-n="1">0</span></button>
       <button data-tab="records">Platten &amp; Verkauft</button>
       <button data-tab="orders">Bestellungen</button>
       <button data-tab="tools">Werkzeuge</button>
@@ -130,6 +137,11 @@
         <div id="import-config" class="hidden">
           <div class="card-box">
             <h2>2. Preise</h2>
+            <label class="auto-box">
+              <input type="checkbox" id="auto" checked>
+              <span><strong>Preise, Cover &amp; Tracklisten automatisch ermitteln</strong><br>
+              <span class="muted small">Nach dem Import wird jede Platte im Katalog nachgeschlagen: Preisvorschläge für VG, VG+ und NM → Durchschnitt minus Rabatt = Verkaufspreis. Cover, Trackliste, Genre und Land kommen automatisch dazu. Eine Preisspalte in der CSV ist dann nicht nötig.</span></span>
+            </label>
             <div class="form-grid">
               <label class="field">Rabatt auf Ø-Marktpreis (%)
                 <input class="input" type="number" id="discount" value="10" min="0" max="90" step="1">
@@ -144,7 +156,7 @@
           </div>
           <div class="card-box">
             <h2>3. Spalten zuordnen</h2>
-            <p class="muted small" style="margin-top:0">Die Spalten wurden automatisch erkannt. Wichtig ist vor allem <strong>„Ø Marktpreis“</strong>: Daraus wird dein Verkaufspreis berechnet. Platten ohne Preis werden als <em>Entwurf</em> gespeichert und sind im Shop nicht sichtbar, bis du einen Preis einträgst.</p>
+            <p class="muted small" style="margin-top:0">Die Spalten wurden automatisch erkannt – in der Regel musst du hier nichts ändern. Wichtig ist die <strong>Release-ID</strong>, damit jede Platte eindeutig im Katalog gefunden wird. Ohne automatische Ermittlung wird der Verkaufspreis aus <strong>„Ø Marktpreis“</strong> berechnet; Platten ohne Preis bleiben als <em>Entwurf</em> unsichtbar, bis ein Preis eingetragen ist.</p>
             <div class="form-grid" id="mapping"></div>
           </div>
           <div class="card-box">
@@ -161,6 +173,34 @@
             <div class="log hidden" id="log"></div>
           </div>
         </div>
+      </section>
+
+      <!-- Preise & Cover ermitteln -->
+      <section class="panel hidden" data-panel="enrich">
+        <div class="kpis" id="e-kpis"></div>
+        <div class="card-box">
+          <h2>Preise &amp; Cover ermitteln</h2>
+          <p class="muted small" style="margin-top:0">Arbeitet die Warteschlange Platte für Platte ab – etwa 20 Platten pro Minute (Grenze des Katalogs). <strong>Lass dieses Fenster geöffnet</strong>; du kannst jederzeit anhalten und später weitermachen. Bereits nachgeschlagene Releases (z. B. doppelte Platten) gehen sofort.</p>
+          <div class="form-grid" style="margin-bottom:14px">
+            <label class="field">Rabatt auf den Durchschnitt (%)
+              <input class="input" type="number" id="e-discount" value="10" min="0" max="90" step="1">
+            </label>
+            <label class="field">Mindestpreis (€)
+              <input class="input" type="number" id="e-min" value="0" min="0" step="0.5">
+            </label>
+          </div>
+          <div class="toolbar">
+            <button class="btn btn-primary btn-lg" id="e-start">Ermittlung starten</button>
+            <button class="btn" id="e-retry">Fehlgeschlagene erneut versuchen</button>
+            <span class="small muted" id="e-status"></span>
+          </div>
+          <div class="progress"><div id="e-prog"></div></div>
+          <div id="e-warn" class="small" style="margin-top:10px;color:var(--warn)"></div>
+        </div>
+        <div class="table-wrap"><table class="t" id="e-table">
+          <thead><tr><th></th><th>Platte</th><th class="hide-m">VG</th><th class="hide-m">VG+</th><th class="hide-m">NM</th><th>Ø</th><th>Verkaufspreis</th><th class="hide-m">Hinweis</th></tr></thead>
+          <tbody><tr><td colspan="8" class="muted" style="padding:20px">Noch keine Platten in dieser Sitzung ermittelt.</td></tr></tbody>
+        </table></div>
       </section>
 
       <!-- Platten -->
@@ -188,6 +228,7 @@
           <button class="btn btn-sm btn-ok" data-bulk="sold">Als verkauft markieren</button>
           <button class="btn btn-sm" data-bulk="available">Wieder verfügbar</button>
           <button class="btn btn-sm" data-bulk="draft">Verstecken</button>
+          <button class="btn btn-sm" data-bulk="enrich">Preise &amp; Cover neu ermitteln</button>
           <button class="btn btn-sm" data-bulk="delete">Löschen</button>
         </div>
         <div class="table-wrap"><table class="t" id="rec-table"></table></div>
