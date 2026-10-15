@@ -27,6 +27,7 @@ export default async function handler(req, res) {
         paypalClientId: process.env.PAYPAL_CLIENT_ID || '',
         currency: 'EUR',
         shipping: s.shipping,
+        perPackage: s.perPackage,
         freeFrom: s.freeFrom,
       }, { 'Cache-Control': 's-maxage=300' });
     }

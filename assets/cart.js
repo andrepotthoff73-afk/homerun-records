@@ -2,7 +2,7 @@
 document.addEventListener('DOMContentLoaded', async () => {
   const { api, esc, eur, imgTag, cart, ICON } = HR;
   const root = document.getElementById('cart');
-  let config = { shipping: 0, freeFrom: 0, paypalClientId: '' };
+  let config = { shipping: 6.19, perPackage: 8, freeFrom: 0, paypalClientId: '' };
   let message = '';
 
   try { config = await api('/api/shop?action=config'); } catch { /* Standardwerte */ }
@@ -30,8 +30,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function totals(list) {
     const items = list.reduce((s, x) => s + Math.round(x.price * 100), 0);
-    const ship = list.length ? (config.freeFrom > 0 && items >= config.freeFrom * 100 ? 0 : Math.round(config.shipping * 100)) : 0;
-    return { items: items / 100, ship: ship / 100, total: (items + ship) / 100 };
+    const packages = Math.ceil(list.length / (config.perPackage || 8));
+    const ship = list.length ? (config.freeFrom > 0 && items >= config.freeFrom * 100 ? 0 : packages * Math.round(config.shipping * 100)) : 0;
+    return { items: items / 100, ship: ship / 100, total: (items + ship) / 100, packages };
   }
 
   function render() {
@@ -58,7 +59,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         </div>
         <aside class="summary">
           <div class="line"><span>Zwischensumme (${list.length} ${list.length === 1 ? 'Platte' : 'Platten'})</span><span>${eur(t.items)}</span></div>
-          <div class="line"><span>Versand</span><span>${t.ship ? eur(t.ship) : 'kostenlos'}</span></div>
+          <div class="line"><span>Versand${t.ship ? ` (${t.packages} ${t.packages === 1 ? 'Paket' : 'Pakete'} à ${eur(config.shipping)})` : ''}</span><span>${t.ship ? eur(t.ship) : 'kostenlos'}</span></div>
+          <div class="small muted">${eur(config.shipping)} je angefangene ${config.perPackage || 8} Platten</div>
           ${config.freeFrom > 0 && t.ship ? `<div class="small muted">Versandkostenfrei ab ${eur(config.freeFrom)}</div>` : ''}
           <div class="line total"><span>Gesamt</span><span>${eur(t.total)}</span></div>
           <div id="pay-msg"></div>

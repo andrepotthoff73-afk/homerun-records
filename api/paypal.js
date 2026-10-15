@@ -37,7 +37,7 @@ async function createOrder(req, res) {
   }
 
   const itemCents = rows.reduce((s, r) => s + cents(r.price), 0);
-  const shipCents = shippingFor(itemCents);
+  const shipCents = shippingFor(itemCents, rows.length);
   const items = rows.map((r) => ({
     name: `${r.artist} – ${r.title}`.slice(0, 127),
     sku: String(r.id),

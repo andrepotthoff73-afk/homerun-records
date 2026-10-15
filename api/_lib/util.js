@@ -12,7 +12,9 @@ const num = (v, d) => {
 
 export function settings() {
   return {
-    shipping: num(process.env.SHIPPING_EUR, 5.9),
+    // Versand: pro Paket (max. 8 Platten je Paket) 6,19 €
+    shipping: num(process.env.SHIPPING_EUR, 6.19),
+    perPackage: Math.max(1, parseInt(process.env.SHIPPING_PER_PACKAGE, 10) || 8),
     freeFrom: num(process.env.FREE_SHIPPING_FROM, 0),
   };
 }
@@ -29,8 +31,9 @@ export const isJson = (req) => String(req.headers['content-type'] || '').include
 
 export const likeEsc = (s) => String(s).replace(/[\\%_]/g, '\\$&');
 
-export function shippingFor(itemCents) {
+// Versandkosten: je angefangene 8 Platten ein Paket
+export function shippingFor(itemCents, count = 1) {
   const s = settings();
   if (s.freeFrom > 0 && itemCents >= cents(s.freeFrom)) return 0;
-  return cents(s.shipping);
+  return Math.ceil(Math.max(1, count) / s.perPackage) * cents(s.shipping);
 }
