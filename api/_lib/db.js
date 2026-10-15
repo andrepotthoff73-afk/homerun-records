@@ -87,6 +87,7 @@ const SCHEMA = [
     completed_at     timestamptz
   )`,
   `ALTER TABLE orders ADD COLUMN IF NOT EXISTS customer_id int`,
+  `ALTER TABLE orders ADD COLUMN IF NOT EXISTS ship_country text`,
 ];
 
 let ready;

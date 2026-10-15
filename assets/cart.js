@@ -28,10 +28,28 @@ document.addEventListener('DOMContentLoaded', async () => {
     } catch { /* offline: lokale Daten anzeigen */ }
   }
 
+  // Lieferland: bestimmt die Versandzone und damit den Preis je Paket
+  const zoneByCountry = new Map(config.countries || [['DE', 'DE']]);
+  let country = 'DE';
+  try { country = localStorage.getItem('hr_country') || 'DE'; } catch { /* egal */ }
+  if (!zoneByCountry.has(country)) country = 'DE';
+  const regionName = (() => {
+    try { const dn = new Intl.DisplayNames(['de'], { type: 'region' }); return (cc) => dn.of(cc) || cc; } catch { return (cc) => cc; }
+  })();
+  const countryOptions = [...zoneByCountry.keys()]
+    .map((cc) => [cc, regionName(cc)])
+    .sort((a, b) => (a[0] === 'DE' ? -1 : b[0] === 'DE' ? 1 : a[1].localeCompare(b[1], 'de')));
+
+  function packagePrice() {
+    const zone = zoneByCountry.get(country);
+    return zone === 'DE' ? config.shipping : config.zonePrices?.[zone] ?? config.shipping;
+  }
+
   function totals(list) {
     const items = list.reduce((s, x) => s + Math.round(x.price * 100), 0);
     const packages = Math.ceil(list.length / (config.perPackage || 8));
-    const ship = list.length ? (config.freeFrom > 0 && items >= config.freeFrom * 100 ? 0 : packages * Math.round(config.shipping * 100)) : 0;
+    const free = country === 'DE' && config.freeFrom > 0 && items >= config.freeFrom * 100;
+    const ship = list.length ? (free ? 0 : packages * Math.round(packagePrice() * 100)) : 0;
     return { items: items / 100, ship: ship / 100, total: (items + ship) / 100, packages };
   }
 
@@ -59,9 +77,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         </div>
         <aside class="summary">
           <div class="line"><span>Zwischensumme (${list.length} ${list.length === 1 ? 'Platte' : 'Platten'})</span><span>${eur(t.items)}</span></div>
-          <div class="line"><span>Versand${t.ship ? ` (${t.packages} ${t.packages === 1 ? 'Paket' : 'Pakete'} à ${eur(config.shipping)})` : ''}</span><span>${t.ship ? eur(t.ship) : 'kostenlos'}</span></div>
-          <div class="small muted">${eur(config.shipping)} je angefangene ${config.perPackage || 8} Platten</div>
-          ${config.freeFrom > 0 && t.ship ? `<div class="small muted">Versandkostenfrei ab ${eur(config.freeFrom)}</div>` : ''}
+          <label class="field">Lieferland
+            <select class="select" id="country">${countryOptions.map(([cc, name]) => `<option value="${cc}" ${cc === country ? 'selected' : ''}>${esc(name)}</option>`).join('')}</select>
+          </label>
+          <div class="line"><span>Versand${t.ship ? ` (${t.packages} ${t.packages === 1 ? 'Paket' : 'Pakete'} à ${eur(packagePrice())})` : ''}</span><span>${t.ship ? eur(t.ship) : 'kostenlos'}</span></div>
+          <div class="small muted">${eur(packagePrice())} je angefangene ${config.perPackage || 8} Platten · Lieferzeit ${country === 'DE' ? '2–5 Werktage' : '7–14 Tage'}</div>
+          ${country === 'DE' && config.freeFrom > 0 && t.ship ? `<div class="small muted">Versandkostenfrei ab ${eur(config.freeFrom)}</div>` : ''}
+          ${country !== 'DE' && zoneByCountry.get(country) !== 1 ? '<div class="small muted">Außerhalb der EU können Zölle und Einfuhrabgaben anfallen, die vom Empfänger zu tragen sind.</div>' : ''}
           <div class="line total"><span>Gesamt</span><span>${eur(t.total)}</span></div>
           <div id="pay-msg"></div>
           <div id="paypal-buttons"></div>
@@ -70,6 +92,13 @@ document.addEventListener('DOMContentLoaded', async () => {
       </div>`;
     mountPayPal();
   }
+
+  root.addEventListener('change', (e) => {
+    if (e.target.id !== 'country') return;
+    country = e.target.value;
+    try { localStorage.setItem('hr_country', country); } catch { /* egal */ }
+    render();
+  });
 
   root.addEventListener('click', (e) => {
     const b = e.target.closest('[data-remove]');
@@ -110,7 +139,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       createOrder: async () => {
         payMsg('');
         try {
-          const { id } = await api('/api/paypal?action=create', { body: { ids: cart.get().map((x) => x.id) } });
+          const { id } = await api('/api/paypal?action=create', { body: { ids: cart.get().map((x) => x.id), country } });
           return id;
         } catch (e) {
           if (e.data?.unavailable) {

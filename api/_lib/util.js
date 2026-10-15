@@ -1,3 +1,5 @@
+import { zoneOf, ZONE_PRICES } from './versand.js';
+
 export function send(res, status, data, headers = {}) {
   res.statusCode = status;
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
@@ -31,9 +33,18 @@ export const isJson = (req) => String(req.headers['content-type'] || '').include
 
 export const likeEsc = (s) => String(s).replace(/[\\%_]/g, '\\$&');
 
-// Versandkosten: je angefangene 8 Platten ein Paket
-export function shippingFor(itemCents, count = 1) {
+// Preis je Paket (in Cent) für ein Lieferland, null = kein Versand dorthin
+export function packagePrice(country = 'DE') {
+  const zone = zoneOf(country);
+  if (zone == null) return null;
+  return zone === 'DE' ? cents(settings().shipping) : cents(ZONE_PRICES[zone]);
+}
+
+// Versandkosten: je angefangene 8 Platten ein Paket. Versandkostenfrei-Grenze gilt nur für Deutschland.
+export function shippingFor(itemCents, count = 1, country = 'DE') {
   const s = settings();
-  if (s.freeFrom > 0 && itemCents >= cents(s.freeFrom)) return 0;
-  return Math.ceil(Math.max(1, count) / s.perPackage) * cents(s.shipping);
+  const price = packagePrice(country);
+  if (price == null) return null;
+  if (zoneOf(country) === 'DE' && s.freeFrom > 0 && itemCents >= cents(s.freeFrom)) return 0;
+  return Math.ceil(Math.max(1, count) / s.perPackage) * price;
 }

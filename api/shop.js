@@ -1,6 +1,7 @@
 // Öffentliche Shop-API: Liste, Detail, Warenkorb-Prüfung, Konfiguration, Cover
 import { db, ensureSchema } from './_lib/db.js';
 import { send, settings, intIds, likeEsc } from './_lib/util.js';
+import { ZONE_PRICES, ZONE_NAMES, zoneOf, shippableCountries } from './_lib/versand.js';
 import { fetchCover } from './_lib/katalog.js';
 
 const LIST_COLS = `id, release_id, artist, title, label, catno, format, released, genre, country,
@@ -28,6 +29,9 @@ export default async function handler(req, res) {
         currency: 'EUR',
         shipping: s.shipping,
         perPackage: s.perPackage,
+        zonePrices: ZONE_PRICES,
+        zoneNames: ZONE_NAMES,
+        countries: shippableCountries().map((cc) => [cc, zoneOf(cc)]),
         freeFrom: s.freeFrom,
       }, { 'Cache-Control': 's-maxage=300' });
     }

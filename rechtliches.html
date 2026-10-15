@@ -5,9 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Infos &amp; Rechtliches – Homerun Records</title>
   <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="preload" href="/assets/fonts/inter-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/assets/style.css">
   <script src="/assets/common.js"></script>
 </head>
@@ -22,28 +20,113 @@
 
     <h2 id="versand">Versand &amp; Zahlung</h2>
     <p>Wir versenden gut verpackt in stabilen LP-Versandkartons.</p>
-    <p><strong>Versandkosten: 7,50&nbsp;€ für bis zu 8 Platten.</strong> Bei größeren Bestellungen werden die Platten in Paketen zu je 8 Stück verschickt; für jede angefangene 8 Platten fallen 7,50&nbsp;€ an:</p>
-    <table class="facts" style="max-width:420px;margin-top:4px">
+    <p><strong>Versandkosten je Paket.</strong> In ein Paket packen wir bis zu 8 Platten. Bei größeren Bestellungen werden die Platten in mehreren Paketen zu je 8 Stück verschickt; die Versandkosten fallen dann je angefangene 8 Platten an. Die Preise richten sich nach dem Lieferland:</p>
+    <table class="facts" style="margin-top:4px">
       <tbody>
-        <tr><th>1–8 Platten</th><td>1 Paket · 7,50&nbsp;€</td></tr>
-        <tr><th>9–16 Platten</th><td>2 Pakete · 15,00&nbsp;€</td></tr>
-        <tr><th>17–24 Platten</th><td>3 Pakete · 22,50&nbsp;€</td></tr>
+        <tr><th>Deutschland</th><td>7,50&nbsp;€ je Paket · 2–5 Werktage</td></tr>
+        <tr><th>EU-Länder</th><td>17,49&nbsp;€ je Paket · 7–14 Tage</td></tr>
+        <tr><th>Schweiz, Großbritannien</th><td>26,99&nbsp;€ je Paket · 7–14 Tage</td></tr>
+        <tr><th>Übriges Europa<br><span class="muted small">z.&nbsp;B. Norwegen, Island, Türkei, Serbien</span></th><td>29,99&nbsp;€ je Paket · 7–14 Tage</td></tr>
+        <tr><th>Naher Osten &amp; Nordafrika</th><td>37,99&nbsp;€ je Paket · 7–14 Tage</td></tr>
+        <tr><th>Asien &amp; Afrika<br><span class="muted small">z.&nbsp;B. Japan, China, Südafrika</span></th><td>45,99&nbsp;€ je Paket · 7–14 Tage</td></tr>
+        <tr><th>Amerika<br><span class="muted small">z.&nbsp;B. USA, Kanada, Brasilien</span></th><td>47,99&nbsp;€ je Paket · 7–14 Tage</td></tr>
+        <tr><th>Australien, Ozeanien &amp; übrige Welt</th><td>55,99&nbsp;€ je Paket · 7–14 Tage</td></tr>
       </tbody>
     </table>
-    <p>Die genauen Versandkosten siehst du vor dem Bezahlen im Warenkorb.</p>
+    <p>Beispiel: 9–16 Platten nach Deutschland = 2 Pakete = 15,00&nbsp;€. Die genauen Versandkosten siehst du nach Auswahl des Lieferlands im Warenkorb, bevor du bezahlst.</p>
+    <p>Bei Lieferungen <strong>außerhalb der EU</strong> können Zölle, Einfuhrumsatzsteuer und Gebühren anfallen. Diese trägt der Empfänger. Nach Russland und Belarus sowie in einige weitere Länder liefern wir derzeit nicht.</p>
     <p>Bezahlt wird über <strong>PayPal</strong> (auch Lastschrift oder Kreditkarte über PayPal möglich). <strong>Versand erfolgt ausschließlich an die in deinem PayPal-Konto hinterlegte Lieferadresse.</strong></p>
-    <p class="placeholder">Versandziele, Lieferzeit (z.&nbsp;B. 2–4 Werktage innerhalb Deutschlands), Versanddienstleister, Abholung möglich?</p>
+    <p><strong>Lieferzeit:</strong> Innerhalb Deutschlands in der Regel 2–5 Werktage, ins Ausland 7–14 Tage je nach Ziel, jeweils ab Zahlungseingang.</p>
 
     <h2 id="impressum">Impressum</h2>
     <p>Angaben gemäß § 5 DDG:</p>
     <p>Axel Michael Weyand<br>Homerun Records<br>c/o Agentur Weyand<br>Baerler Str. 62<br>47441 Moers</p>
     <p>E-Mail: <a href="mailto:info@agentur-weyand.de">info@agentur-weyand.de</a></p>
-    <p class="placeholder">USt-IdNr. (falls vorhanden) bzw. Hinweis auf Kleinunternehmerregelung § 19 UStG ergänzen. Telefonnummer optional.</p>
+    <p class="placeholder">Umsatzsteuer-Identifikationsnummer gemäß § 27a UStG: DE … (falls vorhanden eintragen, sonst diese Zeile löschen). Telefonnummer optional.</p>
 
     <h2 id="datenschutz">Datenschutzerklärung</h2>
-    <p>Diese Website wird bei Vercel Inc. gehostet. Bestellungen werden über PayPal (Europe) S.à r.l. et Cie, S.C.A. abgewickelt; dabei werden Name, E-Mail und Lieferadresse an uns übermittelt und ausschließlich zur Abwicklung der Bestellung gespeichert. Der Warenkorb wird nur lokal in deinem Browser gespeichert. Schriftarten werden von Google Fonts geladen.</p>
-    <p><strong>Kundenkonto (freiwillig):</strong> Wenn du ein Konto erstellst, speichern wir deinen Namen, deine E-Mail-Adresse, dein Passwort (nur verschlüsselt), deine Merkliste und die Zuordnung deiner Bestellungen. Eine Lieferadresse wird im Konto nicht gespeichert – sie kommt bei jeder Bestellung aus PayPal. Du kannst dein Konto jederzeit unter „Mein Konto → Profil“ selbst löschen.</p>
-    <p class="placeholder">Vollständige Datenschutzerklärung (Verantwortlicher, Rechtsgrundlagen, Speicherdauer, Betroffenenrechte, Hosting, PayPal, Google Fonts) hier einfügen.</p>
+    <p class="muted small">Stand: Oktober 2026</p>
+    <div class="callout"><strong>Kurz zusammengefasst:</strong> Wir verwenden keine Werbe- oder Analyse-Tracker und keine Cookie-Banner-pflichtigen Dienste. Wir verarbeiten Ihre Daten nur, soweit es für den Betrieb des Shops, Ihre Bestellung und – falls Sie eines anlegen – Ihr Kundenkonto nötig ist.</div>
+
+    <h3>1. Verantwortlicher</h3>
+    <p>Verantwortlich für die Datenverarbeitung auf dieser Website im Sinne der Datenschutz-Grundverordnung (DSGVO) ist:</p>
+    <p class="address-box">Axel Michael Weyand<br>Homerun Records<br>c/o Agentur Weyand<br>Baerler Str. 62<br>47441 Moers<br>E-Mail: <a href="mailto:info@agentur-weyand.de">info@agentur-weyand.de</a></p>
+    <p>Ein Datenschutzbeauftragter ist nicht bestellt, da die gesetzlichen Voraussetzungen dafür nicht vorliegen. Bei Fragen zum Datenschutz wenden Sie sich bitte an die oben genannte Adresse.</p>
+
+    <h3>2. Rechtsgrundlagen</h3>
+    <p>Wir verarbeiten personenbezogene Daten auf folgenden Rechtsgrundlagen der DSGVO:</p>
+    <ul>
+      <li><strong>Art. 6 Abs. 1 lit. b DSGVO</strong> – zur Erfüllung eines Vertrags oder für vorvertragliche Maßnahmen (z.&nbsp;B. Ihre Bestellung, Ihr Kundenkonto).</li>
+      <li><strong>Art. 6 Abs. 1 lit. c DSGVO</strong> – zur Erfüllung rechtlicher Pflichten (z.&nbsp;B. handels- und steuerrechtliche Aufbewahrungspflichten).</li>
+      <li><strong>Art. 6 Abs. 1 lit. f DSGVO</strong> – zur Wahrung unserer berechtigten Interessen, etwa am sicheren und stabilen Betrieb der Website.</li>
+      <li><strong>Art. 6 Abs. 1 lit. a DSGVO</strong> – soweit Sie uns eine Einwilligung erteilt haben. Eine Einwilligung können Sie jederzeit mit Wirkung für die Zukunft widerrufen.</li>
+    </ul>
+    <p>Das Speichern von Informationen auf Ihrem Endgerät (z.&nbsp;B. Cookies oder Browser-Speicher) erfolgt nur, soweit es für den von Ihnen gewünschten Dienst unbedingt erforderlich ist (§ 25 Abs. 2 Nr. 2 TDDDG).</p>
+
+    <h3>3. Hosting und Server-Logfiles</h3>
+    <p>Diese Website wird bei <strong>Vercel Inc.</strong>, 440 N Barranca Ave #4133, Covina, CA 91723, USA, gehostet. Beim Aufruf der Website verarbeitet der Hoster automatisch technisch notwendige Daten in sogenannten Server-Logfiles:</p>
+    <ul>
+      <li>IP-Adresse, Datum und Uhrzeit des Zugriffs,</li>
+      <li>aufgerufene Seite bzw. Datei, übertragene Datenmenge, Statuscode,</li>
+      <li>Browser, Betriebssystem und die zuvor besuchte Seite (Referrer).</li>
+    </ul>
+    <p>Diese Daten sind erforderlich, um die Website auszuliefern und ihre Sicherheit und Stabilität zu gewährleisten. Rechtsgrundlage ist Art. 6 Abs. 1 lit. f DSGVO. Die Logfiles werden nach kurzer Zeit automatisch gelöscht.</p>
+    <p>Die Datenbank des Shops (Plattenbestand, Bestellungen, Kundenkonten) wird von <strong>Neon Inc.</strong> (USA) betrieben, die Cover-Bilder werden im Speicherdienst von Vercel abgelegt. Mit den Dienstleistern bestehen Verträge zur Auftragsverarbeitung (Art. 28 DSGVO). Soweit Daten in die USA übermittelt werden, erfolgt dies auf Grundlage des EU-US Data Privacy Framework (Angemessenheitsbeschluss der EU-Kommission) bzw. der EU-Standardvertragsklauseln.</p>
+
+    <h3>4. Verschlüsselung</h3>
+    <p>Diese Website nutzt aus Sicherheitsgründen eine SSL/TLS-Verschlüsselung. Eine verschlüsselte Verbindung erkennen Sie an „https://“ und dem Schloss-Symbol in der Adresszeile Ihres Browsers.</p>
+
+    <h3>5. Cookies und Browser-Speicher</h3>
+    <p>Wir setzen keine Cookies zu Werbe- oder Analysezwecken. Verwendet werden ausschließlich technisch notwendige Speicherungen:</p>
+    <ul>
+      <li><strong>Warenkorb und Anzeige-Einstellungen</strong> werden im lokalen Speicher Ihres Browsers abgelegt und nicht an uns übertragen, bis Sie bestellen.</li>
+      <li><strong>Anmelde-Cookie</strong> („hr_kunde“), wenn Sie sich in Ihr Kundenkonto einloggen. Es hält Sie bis zu 30 Tage angemeldet und wird beim Abmelden gelöscht.</li>
+    </ul>
+    <p>Rechtsgrundlage ist § 25 Abs. 2 Nr. 2 TDDDG in Verbindung mit Art. 6 Abs. 1 lit. b und f DSGVO.</p>
+
+    <h3>6. Schriftarten</h3>
+    <p>Diese Website verwendet die Schriftart „Inter“. Sie ist <strong>lokal auf unserem Server eingebunden</strong>. Beim Aufruf der Website wird daher <strong>keine Verbindung zu Servern von Google</strong> oder anderen Anbietern aufgebaut; es werden keine Daten an Google Fonts übermittelt.</p>
+
+    <h3>7. Bestellungen und Bezahlung mit PayPal</h3>
+    <p>Wenn Sie bestellen, verarbeiten wir die Bestelldaten (gekaufte Platten, Preise, Bestellzeitpunkt) sowie die uns von PayPal übermittelten Daten: <strong>Name, E-Mail-Adresse und Lieferadresse</strong> aus Ihrem PayPal-Konto. Wir nutzen diese Daten ausschließlich zur Abwicklung und Lieferung Ihrer Bestellung und zur Erfüllung gesetzlicher Pflichten. Rechtsgrundlage ist Art. 6 Abs. 1 lit. b und c DSGVO.</p>
+    <p>Die Bezahlung erfolgt über <strong>PayPal (Europe) S.à r.l. et Cie, S.C.A.</strong>, 22–24 Boulevard Royal, L-2449 Luxemburg. Im Warenkorb werden dazu die PayPal-Bezahlknöpfe von PayPal geladen; dabei erhält PayPal technische Daten wie Ihre IP-Adresse. Bei der Zahlung übermitteln wir PayPal die Bestellpositionen und den Betrag. PayPal kann bei bestimmten Zahlungsarten (z.&nbsp;B. Lastschrift) eine Bonitätsprüfung durchführen. Einzelheiten finden Sie in der <a href="https://www.paypal.com/de/legalhub/privacy-full" target="_blank" rel="noopener">Datenschutzerklärung von PayPal</a>.</p>
+    <p>Für den Versand geben wir Ihren Namen und Ihre Lieferadresse an das beauftragte Versandunternehmen (z.&nbsp;B. DHL) weiter, soweit dies für die Zustellung erforderlich ist (Art. 6 Abs. 1 lit. b DSGVO).</p>
+
+    <h3>8. Kundenkonto (freiwillig)</h3>
+    <p>Sie können ein Kundenkonto anlegen. Dabei speichern wir Ihren <strong>Namen</strong>, Ihre <strong>E-Mail-Adresse</strong>, Ihr <strong>Passwort</strong> (nur als verschlüsselter Hash-Wert, nicht im Klartext), Ihre <strong>Merkliste</strong>, den Zeitpunkt der Registrierung und der letzten Anmeldung sowie die Zuordnung Ihrer Bestellungen. Eine Lieferadresse wird im Konto nicht gespeichert – sie kommt bei jeder Bestellung aus PayPal.</p>
+    <p>Rechtsgrundlage ist Art. 6 Abs. 1 lit. b DSGVO. Sie können Ihr Konto jederzeit unter „Mein Konto → Profil“ selbst löschen. Dabei werden Ihre Kontodaten und Ihre Merkliste gelöscht; Bestellungen bleiben wegen der gesetzlichen Aufbewahrungspflichten erhalten, sind aber nicht mehr mit einem Konto verknüpft.</p>
+
+    <h3>9. Kontakt per E-Mail</h3>
+    <p>Wenn Sie uns per E-Mail kontaktieren, verarbeiten wir Ihre Angaben (E-Mail-Adresse, Name, Inhalt der Nachricht), um Ihre Anfrage zu bearbeiten. Rechtsgrundlage ist Art. 6 Abs. 1 lit. b DSGVO, sofern Ihre Anfrage mit einem Vertrag zusammenhängt, ansonsten Art. 6 Abs. 1 lit. f DSGVO.</p>
+
+    <h3>10. Speicherdauer</h3>
+    <ul>
+      <li><strong>Server-Logfiles:</strong> nur kurzzeitig, sie werden automatisch gelöscht.</li>
+      <li><strong>Kundenkonto:</strong> bis Sie es löschen.</li>
+      <li><strong>Bestell- und Rechnungsdaten:</strong> für die Dauer der gesetzlichen Aufbewahrungspflichten nach Handels- und Steuerrecht (§ 257 HGB, § 147 AO), in der Regel 6 bis 10 Jahre.</li>
+      <li><strong>E-Mail-Anfragen:</strong> bis Ihr Anliegen erledigt ist, sofern keine Aufbewahrungspflicht besteht.</li>
+      <li><strong>Warenkorb im Browser:</strong> bis Sie ihn leeren oder Ihre Browserdaten löschen.</li>
+    </ul>
+
+    <h3>11. Ihre Rechte</h3>
+    <p>Sie haben jederzeit das Recht auf:</p>
+    <ul>
+      <li><strong>Auskunft</strong> über Ihre bei uns gespeicherten Daten (Art. 15 DSGVO),</li>
+      <li><strong>Berichtigung</strong> unrichtiger Daten (Art. 16 DSGVO),</li>
+      <li><strong>Löschung</strong> Ihrer Daten (Art. 17 DSGVO), soweit keine gesetzliche Aufbewahrungspflicht entgegensteht,</li>
+      <li><strong>Einschränkung</strong> der Verarbeitung (Art. 18 DSGVO),</li>
+      <li><strong>Datenübertragbarkeit</strong> (Art. 20 DSGVO),</li>
+      <li><strong>Widerruf</strong> einer erteilten Einwilligung mit Wirkung für die Zukunft (Art. 7 Abs. 3 DSGVO).</li>
+    </ul>
+    <p><strong>Widerspruchsrecht (Art. 21 DSGVO):</strong> Soweit wir Daten auf Grundlage von Art. 6 Abs. 1 lit. f DSGVO verarbeiten, können Sie aus Gründen, die sich aus Ihrer besonderen Situation ergeben, jederzeit Widerspruch gegen die Verarbeitung einlegen.</p>
+    <p>Zur Ausübung Ihrer Rechte genügt eine formlose Nachricht an <a href="mailto:info@agentur-weyand.de">info@agentur-weyand.de</a>.</p>
+    <p><strong>Beschwerderecht:</strong> Sie haben das Recht, sich bei einer Datenschutz-Aufsichtsbehörde zu beschweren. Für uns zuständig ist die Landesbeauftragte für Datenschutz und Informationsfreiheit Nordrhein-Westfalen, Kavalleriestraße 2–4, 40213 Düsseldorf, <a href="https://www.ldi.nrw.de" target="_blank" rel="noopener">www.ldi.nrw.de</a>.</p>
+
+    <h3>12. Keine automatisierte Entscheidungsfindung</h3>
+    <p>Wir nutzen keine automatisierte Entscheidungsfindung oder Profiling im Sinne von Art. 22 DSGVO.</p>
+
+    <h3>13. Änderungen</h3>
+    <p>Wir passen diese Datenschutzerklärung an, wenn sich die Website oder die Rechtslage ändert. Es gilt jeweils die hier veröffentlichte Fassung.</p>
 
     <h2 id="widerruf">Widerrufsbelehrung</h2>
     <div class="callout">
@@ -70,7 +153,7 @@
     <ul>
       <li>Teile uns deinen Widerruf mit, z.&nbsp;B. per E-Mail oder mit dem Formular unten.</li>
       <li>Verpacke die Platten bitte sicher, am besten im Original-Versandkarton, und schicke sie an die oben genannte Adresse. Wähle eine Versandart mit Sendungsverfolgung.</li>
-      <li>Sobald die Platten bei uns sind, erstatten wir dir den Kaufpreis und die Versandkosten der Hinsendung (7,50&nbsp;€ je angefangene 8 Platten) über PayPal. Die Kosten für den Rückversand trägst du.</li>
+      <li>Sobald die Platten bei uns sind, erstatten wir dir den Kaufpreis und die Versandkosten der Hinsendung über PayPal. Die Kosten für den Rückversand trägst du.</li>
     </ul>
 
     <h3 id="widerrufsformular">Muster-Widerrufsformular</h3>
@@ -108,7 +191,7 @@
     <h3>3. Preise und Bezahlung</h3>
     <ul>
       <li>Alle Preise im Shop sind Endpreise in Euro.</li>
-      <li class="placeholder">Bitte eine Variante wählen und die andere löschen: <em>„Alle Preise enthalten die gesetzliche Mehrwertsteuer.“</em> <strong>oder</strong> <em>„Gemäß § 19 UStG (Kleinunternehmerregelung) wird keine Umsatzsteuer berechnet und ausgewiesen.“</em></li>
+      <li>Alle Preise enthalten die gesetzliche Mehrwertsteuer.</li>
       <li>Zusätzlich fallen Versandkosten an (siehe Punkt 4). Sie werden dir vor dem Bezahlen im Warenkorb und bei PayPal angezeigt.</li>
       <li>Bezahlt wird ausschließlich über <strong>PayPal</strong>. Über PayPal kannst du je nach Angebot auch per Lastschrift oder Kreditkarte zahlen. Der Betrag wird sofort bei der Bestellung fällig.</li>
     </ul>
@@ -116,9 +199,9 @@
     <h3>4. Versand</h3>
     <ul>
       <li>Wir versenden die Platten sicher verpackt in stabilen LP-Versandkartons.</li>
-      <li><strong>Versandkosten: 7,50&nbsp;€ für bis zu 8 Platten.</strong> Bei größeren Bestellungen packen wir je 8 Platten in ein Paket; für jede angefangene 8 Platten fallen 7,50&nbsp;€ an (z.&nbsp;B. 9–16 Platten: 15,00&nbsp;€).</li>
+      <li><strong>Versandkosten:</strong> Wir packen bis zu 8 Platten in ein Paket; die Versandkosten fallen je angefangene 8 Platten an und richten sich nach dem Lieferland – in Deutschland 7,50&nbsp;€ je Paket. Alle Preise findest du unter <a href="#versand">Versand &amp; Zahlung</a>; den genauen Betrag siehst du vor dem Bezahlen im Warenkorb.</li>
       <li><strong>Wir liefern ausschließlich an die Lieferadresse, die in deinem PayPal-Konto hinterlegt ist.</strong> Bitte prüfe sie vor dem Bezahlen. Eine andere Adresse kannst du bei PayPal auswählen oder ändern.</li>
-      <li class="placeholder">Liefergebiet und Lieferzeit ergänzen, z.&nbsp;B.: „Wir liefern innerhalb Deutschlands. Die Lieferzeit beträgt in der Regel 2–5 Werktage nach Zahlungseingang.“</li>
+      <li><strong>Liefergebiet und Lieferzeit:</strong> Wir liefern nach Deutschland und in viele Länder weltweit (Übersicht unter <a href="#versand">Versand &amp; Zahlung</a>). Die Lieferzeit beträgt innerhalb Deutschlands in der Regel 2–5 Werktage, ins Ausland 7–14 Tage je nach Ziel, jeweils ab Zahlungseingang. Bei Lieferungen außerhalb der EU trägt der Empfänger etwaige Zölle und Einfuhrabgaben.</li>
       <li>Kommt ein Paket sichtbar beschädigt an, lass dir den Schaden bitte möglichst vom Zusteller bestätigen und gib uns Bescheid. Deine gesetzlichen Rechte bleiben davon unberührt; das Versandrisiko tragen bis zur Übergabe an dich wir.</li>
     </ul>
 

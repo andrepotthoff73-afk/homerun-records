@@ -160,7 +160,7 @@ const HR = (() => {
           <a href="/rechtliches#widerruf">Widerruf &amp; AGB</a>
         </div>
       </div>
-      <div class="legal">© ${new Date().getFullYear()} Homerun Records · Preise inkl. MwSt. bzw. gemäß § 19 UStG · zzgl. Versand</div>
+      <div class="legal">© ${new Date().getFullYear()} Homerun Records · Alle Preise inkl. MwSt. · zzgl. Versand</div>
     </footer>`;
   }
 

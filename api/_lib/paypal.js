@@ -18,10 +18,10 @@ async function accessToken() {
   return j.access_token;
 }
 
-export async function paypal(path, body) {
+export async function paypal(path, body, method = 'POST') {
   const token = await accessToken();
   const r = await fetch(`${base()}${path}`, {
-    method: 'POST',
+    method,
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: body ? JSON.stringify(body) : undefined,
   });

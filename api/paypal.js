@@ -4,6 +4,7 @@ import { db, ensureSchema } from './_lib/db.js';
 import { send, intIds, isJson, cents, money, shippingFor } from './_lib/util.js';
 import { paypal } from './_lib/paypal.js';
 import { customerId } from './_lib/kunde.js';
+import { zoneOf } from './_lib/versand.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST' || !isJson(req)) return send(res, 405, { error: 'Nur POST/JSON erlaubt' });
@@ -36,8 +37,10 @@ async function createOrder(req, res) {
     });
   }
 
+  const country = String(req.body?.country || 'DE').toUpperCase();
   const itemCents = rows.reduce((s, r) => s + cents(r.price), 0);
-  const shipCents = shippingFor(itemCents, rows.length);
+  const shipCents = shippingFor(itemCents, rows.length, country);
+  if (shipCents == null) return send(res, 400, { error: 'In dieses Land können wir leider nicht liefern.' });
   const items = rows.map((r) => ({
     name: `${r.artist} – ${r.title}`.slice(0, 127),
     sku: String(r.id),
@@ -74,9 +77,9 @@ async function createOrder(req, res) {
   }
 
   await sql.query(
-    `INSERT INTO orders (paypal_order_id, record_ids, items, item_total, shipping, total, customer_id)
-     VALUES ($1, $2::int[], $3::jsonb, $4, $5, $6, $7)`,
-    [r.data.id, ids, JSON.stringify(items), money(itemCents), money(shipCents), money(itemCents + shipCents), customerId(req)],
+    `INSERT INTO orders (paypal_order_id, record_ids, items, item_total, shipping, total, customer_id, ship_country)
+     VALUES ($1, $2::int[], $3::jsonb, $4, $5, $6, $7, $8)`,
+    [r.data.id, ids, JSON.stringify(items), money(itemCents), money(shipCents), money(itemCents + shipCents), customerId(req), country],
   );
   send(res, 200, { id: r.data.id });
 }
@@ -88,6 +91,21 @@ async function captureOrder(req, res) {
   const order = orders[0];
   if (!order) return send(res, 404, { error: 'Bestellung nicht gefunden.' });
   const ids = order.record_ids;
+
+  // Vor dem Abbuchen prüfen: Passt die PayPal-Lieferadresse zur Versandzone, die im Warenkorb gewählt wurde?
+  const check = await paypal(`/v2/checkout/orders/${encodeURIComponent(orderID)}`, null, 'GET');
+  const addrCountry = check.data?.purchase_units?.[0]?.shipping?.address?.country_code;
+  const chosen = order.ship_country || 'DE';
+  if (!check.ok || zoneOf(addrCountry) == null || zoneOf(addrCountry) !== zoneOf(chosen)) {
+    await sql.query(`UPDATE orders SET status = 'failed' WHERE id = $1`, [order.id]);
+    const blocked = addrCountry && zoneOf(addrCountry) == null;
+    return send(res, 422, {
+      error: blocked
+        ? 'In das Land deiner PayPal-Lieferadresse können wir leider nicht liefern. Es wurde nichts abgebucht.'
+        : 'Deine PayPal-Lieferadresse liegt in einem anderen Land als im Warenkorb ausgewählt. Bitte wähle im Warenkorb das richtige Lieferland und bezahle erneut. Es wurde nichts abgebucht.',
+      issue: 'COUNTRY',
+    });
+  }
 
   // Platten reservieren, damit sie nicht doppelt verkauft werden
   const reserved = await sql.query(
