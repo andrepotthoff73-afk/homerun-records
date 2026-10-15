@@ -323,3 +323,17 @@ a.kpi-card:hover { border-color: var(--ink-3); }
   .member-nav button { white-space: nowrap; }
   .member-nav #logout { margin: 0 0 0 auto; }
 }
+.prose h3 { font-size: 1.02rem; margin: 1.6em 0 .5em; }
+.prose ul { padding-left: 1.2em; display: grid; gap: 6px; }
+.prose li.placeholder { list-style: none; margin-left: -1.2em; }
+.prose .facts th { width: 190px; }
+.callout { background: var(--bg-2); border-left: 3px solid var(--ink); padding: 12px 16px; border-radius: 4px; margin: 0 0 8px; }
+.form-sample { border: 1px dashed var(--line-2); border-radius: var(--radius); padding: 16px 20px; background: #fff; }
+.form-sample p { margin: 0 0 12px; }
+.form-sample .line { border-bottom: 1px solid var(--ink-3); min-height: 1.4em; }
+.form-sample .line.inline { display: inline-block; min-width: 240px; }
+@media print {
+  .site-header, .site-footer, .btn { display: none !important; }
+  .prose .placeholder { background: none; border: 0; padding: 0; }
+}
+.address-box { background: var(--bg-2); padding: 10px 14px; border-radius: 4px; }
