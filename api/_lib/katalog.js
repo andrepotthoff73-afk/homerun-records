@@ -193,9 +193,9 @@ export async function enrichRecord(rec, { discount = 5, minPrice = 0 } = {}) {
       ? 'Preisvorschläge fehlen: Verkäufer-Einstellungen im Katalog-Konto ausfüllen'
       : 'Keine Preisvorschläge (Token prüfen)');
   }
-  // Preisvorschlag für den Zustand dieser Platte (unbekannt → VG+)
-  const cond = condCode(rec.media_condition) || 'VG+';
-  if (!condCode(rec.media_condition)) notes.push('Zustand unbekannt – VG+ angenommen');
+  // Preisvorschlag für den Zustand dieser Platte – ohne Angabe wird ein mittlerer Zustand angenommen: Very Good (VG)
+  const cond = condCode(rec.media_condition) || 'VG';
+  if (!condCode(rec.media_condition)) notes.push('Zustand unbekannt – VG (mittel) angenommen');
   const condPrice = p.byCond?.[cond] ?? null;
   const lowest = p.lowest;
   // Basis = Mittelwert aus günstigstem Angebot und Zustands-Vorschlag
