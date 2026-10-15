@@ -117,7 +117,7 @@ const HR = (() => {
         <a href="/?format=Box">Box Sets</a>
         <a href="/?sort=price_asc">Schnäppchen</a>
         <a href="/suche">Erweiterte Suche</a>
-        <span class="subnav-note"><strong>Fast alle Platten 10&nbsp;% günstiger</strong> als auf jeder anderen Seite</span>
+        <span class="subnav-note"><strong>Faire Preise</strong> – immer im Rahmen der aktuellen Marktpreise</span>
       </div></div>
     </header>`;
     updateBadge();
