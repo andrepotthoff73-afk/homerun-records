@@ -28,6 +28,7 @@ export default async function handler(req, res) {
     if (post && action === 'cover') return await coverStep(res);
     if (post && action === 'enrich') return await enrichStep(req, res);
     if (post && action === 'enrich-retry') return await enrichRetry(res);
+    if (post && action === 'enrich-nosugg') return await enrichNoSuggestions(res);
     if (post && action === 'upload-cover') return await uploadCover(req, res);
     send(res, 404, { error: 'Unbekannte Aktion' });
   } catch (e) {
@@ -55,7 +56,8 @@ async function stats(res) {
     sql.query(`SELECT status, count(*)::int AS n, coalesce(sum(price), 0)::float AS value FROM records GROUP BY status`),
     sql.query(`SELECT count(*)::int AS n, coalesce(sum(total), 0)::float AS revenue FROM orders WHERE status = 'completed'`),
     sql.query(`SELECT count(*)::int AS n FROM records WHERE (cover_url IS NULL OR tracks IS NULL) AND release_id IS NOT NULL`),
-    sql.query(`SELECT count(*) FILTER (WHERE enrich_status = 'pending')::int AS pending, count(*) FILTER (WHERE enrich_status = 'error')::int AS errors FROM records`),
+    sql.query(`SELECT count(*) FILTER (WHERE enrich_status = 'pending')::int AS pending, count(*) FILTER (WHERE enrich_status = 'error')::int AS errors,
+      count(*) FILTER (WHERE enrich_status = 'done' AND enrich_note ILIKE '%Preisvorschläge%' AND status NOT IN ('sold', 'reserved'))::int AS nosugg FROM records`),
   ]);
   const s = Object.fromEntries(byStatus.map((r) => [r.status, r]));
   send(res, 200, {
@@ -70,6 +72,7 @@ async function stats(res) {
     missingCovers: covers[0].n,
     enrichPending: enrich[0].pending,
     enrichErrors: enrich[0].errors,
+    enrichNoSugg: enrich[0].nosugg,
     coverToken: Boolean(process.env.DISCOGS_TOKEN),
     blob: Boolean(process.env.BLOB_READ_WRITE_TOKEN),
     paypal: Boolean(process.env.PAYPAL_CLIENT_ID && process.env.PAYPAL_CLIENT_SECRET),
@@ -276,5 +279,12 @@ async function enrichStep(req, res) {
 
 async function enrichRetry(res) {
   const rows = await db().query(`UPDATE records SET enrich_status = 'pending', enrich_note = NULL WHERE enrich_status = 'error' RETURNING id`);
+  send(res, 200, { changed: rows.length });
+}
+
+// Platten, die nur mit Ersatzpreis (ohne Preisvorschläge) erfasst wurden, erneut ermitteln
+async function enrichNoSuggestions(res) {
+  const rows = await db().query(`UPDATE records SET enrich_status = 'pending', enrich_note = NULL
+    WHERE enrich_status = 'done' AND enrich_note ILIKE '%Preisvorschläge%' AND status NOT IN ('sold', 'reserved') RETURNING id`);
   send(res, 200, { changed: rows.length });
 }

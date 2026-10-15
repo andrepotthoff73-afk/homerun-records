@@ -68,7 +68,8 @@ export async function lookupRelease(id, { prices = true } = {}) {
     data.info = releaseInfo(r.data);
     changed = true;
   }
-  if (prices && (!data.prices || Date.now() - (data.prices.at || 0) > PRICE_MAX_AGE)) {
+  // Preise neu holen, wenn alt – oder wenn beim letzten Mal die Preisvorschläge fehlten
+  if (prices && (!data.prices || data.prices.suggError || Date.now() - (data.prices.at || 0) > PRICE_MAX_AGE)) {
     const R = await eurRates();
     const st = await dget(`/marketplace/stats/${id}?curr_abbr=EUR`);
     const sg = await dget(`/marketplace/price_suggestions/${id}`);

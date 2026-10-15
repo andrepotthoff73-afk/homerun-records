@@ -324,11 +324,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     setBadge(s.enrichPending);
     renderKpis();
     $('e-retry').classList.toggle('hidden', !s.enrichErrors);
+    $('e-nosugg').classList.toggle('hidden', !s.enrichNoSugg);
+    $('e-nosugg').textContent = `${num(s.enrichNoSugg)} Platte(n) mit Ersatzpreis neu ermitteln`;
     const warn = [];
     if (!s.coverToken) warn.push('Kein Katalog-Token gesetzt (DISCOGS_TOKEN, siehe README) – ohne Token gibt es keine Preisvorschläge und nur ca. 8 Platten pro Minute.');
     if (!s.blob) warn.push('Bildspeicher nicht verbunden – Cover werden vom Katalog-Server angezeigt.');
     $('e-warn').textContent = warn.join(' ');
-    if (s.enrichPending || s.enrichErrors) $('run-box').classList.remove('hidden');
+    if (s.enrichPending || s.enrichErrors || s.enrichNoSugg) $('run-box').classList.remove('hidden');
     return s;
   }
 
@@ -429,6 +431,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('e-retry').addEventListener('click', async () => {
     const r = await call('/api/admin?action=enrich-retry', { body: {} });
     toast(`${num(r.changed)} Platte(n) werden erneut ermittelt`);
+    startEnrich();
+  });
+  $('e-nosugg').addEventListener('click', async () => {
+    const r = await call('/api/admin?action=enrich-nosugg', { body: {} });
+    toast(`${num(r.changed)} Platte(n) werden mit Preisvorschlägen neu ermittelt`);
     startEnrich();
   });
   window.addEventListener('beforeunload', (e) => { if (en.running || importing) { e.preventDefault(); e.returnValue = ''; } });
