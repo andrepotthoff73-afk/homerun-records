@@ -101,7 +101,7 @@ const toEUR = (p) => (p && p.value != null && rates[p.currency || 'EUR'] ? p.val
 async function lookup(id) {
   const c = cache[id] || (cache[id] = {});
   const notes = [];
-  if (!c.release) {
+  if (!c.release || !Array.isArray(c.release.formats)) {
     const rel = await discogs(`/releases/${id}`);
     if (rel.notFound) return { error: 'Release-ID bei Discogs nicht gefunden' };
     if (rel.error) return { error: rel.error };
@@ -111,11 +111,14 @@ async function lookup(id) {
       image: img?.uri || '',
       genre: [...(rel.genres || []), ...(rel.styles || [])].join(', '),
       country: rel.country || '',
+      formats: (rel.formats || []).map((f) => f.name),
+      vinyl: (rel.formats || []).some((f) => /^(vinyl|flexi-disc|lathe cut|acetate)$/i.test(f.name)),
       year: rel.year ? String(rel.year) : '',
       tracks: (rel.tracklist || []).filter((t) => t.type_ !== 'heading' && t.title).map((t) => `${t.position ? `${t.position} ` : ''}${t.title}`).join('; '),
     };
   }
-  if (!c.prices || Date.now() - c.prices.at > PRICE_MAX_AGE) {
+  if (!c.release.vinyl) { saveCache(); return { c, notes, noVinyl: true }; }
+  if (!c.prices || c.prices.suggError || Date.now() - c.prices.at > PRICE_MAX_AGE) {
     const stats = await discogs(`/marketplace/stats/${id}?curr_abbr=EUR`);
     const sugg = await discogs(`/marketplace/price_suggestions/${id}`);
     const pick = (k) => (sugg && !sugg.error ? toEUR(sugg[k]) : null);
@@ -154,7 +157,7 @@ async function downloadCover(id, c) {
 }
 
 async function searchRelease(row) {
-  const qs = new URLSearchParams({ type: 'release', artist: row.artist, release_title: row.title });
+  const qs = new URLSearchParams({ type: 'release', format: 'Vinyl', artist: row.artist, release_title: row.title });
   if (row.catno) qs.set('catno', row.catno.split(',')[0].trim());
   let r = await discogs(`/database/search?${qs}`);
   if ((!r.results || !r.results.length) && row.catno) { qs.delete('catno'); r = await discogs(`/database/search?${qs}`); }
@@ -226,8 +229,9 @@ async function run(j) {
       res.id = id;
       if (!id) res.notes.push('Nicht bei Discogs gefunden');
       else {
-        const { c, notes, error } = await lookup(id);
+        const { c, notes, error, noVinyl } = await lookup(id);
         if (error) res.notes.push(error);
+        else if (noVinyl) res.notes.push(`Kein Vinyl (${c.release.formats.join(', ') || 'anderes Format'}) – nicht bepreist`);
         else {
           res.notes.push(...notes);
           const p = c.prices;

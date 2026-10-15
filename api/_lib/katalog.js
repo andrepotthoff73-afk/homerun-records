@@ -38,6 +38,20 @@ async function eurRates() {
 }
 const toEUR = (p, R) => (p && p.value != null && R[p.currency || 'EUR'] ? p.value / R[p.currency || 'EUR'] : null);
 const round2 = (n) => Math.round(n * 100) / 100;
+// Zustandskürzel aus „Very Good Plus (VG+)“ → „VG+“
+const condCode = (s) => (String(s || '').match(/\(([^)]+)\)/) || [])[1] || null;
+// Höchstens so weit darf der Verkaufspreis vom günstigsten Angebot abweichen
+const MAX_DEVIATION = 0.10;
+
+// Nur Vinyl wird bepreist. Discogs-Formatnamen für Vinyl:
+const VINYL_FORMATS = /^(vinyl|flexi-disc|lathe cut|acetate)$/i;
+// Schnelle Vorprüfung anhand der Format-Spalte aus der CSV (spart Abfragen)
+const CSV_VINYL = /\bLP\b|\dxLP|vinyl|\b(7|10|12)"|flexi|lathe|acetate/i;
+const CSV_NOT_VINYL = /\bCDr?\b|cass|\bDVD|blu-?ray|\bfile\b|mp3|flac|\bVHS\b|minidisc|8-track/i;
+export function csvIsNotVinyl(format) {
+  const f = String(format || '');
+  return Boolean(f) && CSV_NOT_VINYL.test(f) && !CSV_VINYL.test(f);
+}
 
 function releaseInfo(rel) {
   const imgs = rel.images || [];
@@ -48,6 +62,8 @@ function releaseInfo(rel) {
     genre: [...(rel.genres || []), ...(rel.styles || [])].join(', ') || null,
     country: rel.country || null,
     year: rel.year ? String(rel.year) : null,
+    formats: (rel.formats || []).map((f) => f.name),
+    vinyl: (rel.formats || []).some((f) => VINYL_FORMATS.test(f.name)),
     tracks: (rel.tracklist || [])
       .filter((t) => t.type_ !== 'heading' && t.title)
       .map((t) => `${t.position ? `${t.position}\t` : ''}${t.title}`)
@@ -61,7 +77,7 @@ export async function lookupRelease(id, { prices = true } = {}) {
   const row = (await sql.query('SELECT data, fetched_at FROM release_cache WHERE release_id = $1', [id]))[0];
   const data = row?.data || {};
   let changed = false;
-  if (!data.info) {
+  if (!data.info || !Array.isArray(data.info.formats)) {
     const r = await dget(`/releases/${id}`);
     if (r.status === 404) return { notFound: true };
     if (!r.ok) throw new Error(r.data.message || `Katalog-Fehler ${r.status}`);
@@ -69,12 +85,19 @@ export async function lookupRelease(id, { prices = true } = {}) {
     changed = true;
   }
   // Preise neu holen, wenn alt – oder wenn beim letzten Mal die Preisvorschläge fehlten
-  if (prices && (!data.prices || data.prices.suggError || Date.now() - (data.prices.at || 0) > PRICE_MAX_AGE)) {
+  if (prices && (!data.prices || !data.prices.byCond || data.prices.suggError || Date.now() - (data.prices.at || 0) > PRICE_MAX_AGE)) {
     const R = await eurRates();
     const st = await dget(`/marketplace/stats/${id}?curr_abbr=EUR`);
     const sg = await dget(`/marketplace/price_suggestions/${id}`);
     const s = sg.ok ? sg.data : {};
+    // Preisvorschläge für alle Zustände, Schlüssel = Kürzel wie „VG+“
+    const byCond = {};
+    for (const [k, v] of Object.entries(s)) {
+      const code = condCode(k);
+      if (code) byCond[code] = toEUR(v, R);
+    }
     data.prices = {
+      byCond,
       at: Date.now(),
       low: toEUR(s['Very Good (VG)'], R),
       mid: toEUR(s['Very Good Plus (VG+)'], R),
@@ -122,7 +145,8 @@ async function storeCover(id, data) {
 }
 
 async function searchRelease(rec) {
-  const qs = new URLSearchParams({ type: 'release', artist: rec.artist, release_title: rec.title });
+  // Nur Vinyl-Veröffentlichungen als Treffer zulassen
+  const qs = new URLSearchParams({ type: 'release', format: 'Vinyl', artist: rec.artist, release_title: rec.title });
   if (rec.catno) qs.set('catno', String(rec.catno).split(',')[0].trim());
   let r = await dget(`/database/search?${qs}`);
   if (!(r.data.results || []).length && rec.catno) { qs.delete('catno'); r = await dget(`/database/search?${qs}`); }
@@ -130,9 +154,21 @@ async function searchRelease(rec) {
 }
 
 // Eine Platte aus der Warteschlange vollständig ergänzen: Preise, Verkaufspreis, Cover, Tracks, Genre, Land
-export async function enrichRecord(rec, { discount = 10, minPrice = 0 } = {}) {
+export async function enrichRecord(rec, { discount = 5, minPrice = 0 } = {}) {
   const sql = db();
   const notes = [];
+  const noVinyl = async (fmt) => {
+    const note = `Kein Vinyl (${fmt || 'anderes Format'}) – wird nicht bepreist`;
+    await sql.query(
+      `UPDATE records SET enrich_status = 'novinyl', enrich_note = $2,
+         status = CASE WHEN status IN ('sold', 'reserved') OR price_locked THEN status ELSE 'draft' END, updated_at = now()
+       WHERE id = $1`,
+      [rec.id, note],
+    );
+    return { notes: [note], novinyl: true, status: 'draft' };
+  };
+  // Vorprüfung über die Format-Angabe aus der CSV, z. B. „CD, Single“
+  if (csvIsNotVinyl(rec.format)) return noVinyl(rec.format);
   let rid = rec.release_id;
   if (!rid) {
     rid = await searchRelease(rec);
@@ -142,25 +178,45 @@ export async function enrichRecord(rec, { discount = 10, minPrice = 0 } = {}) {
     await sql.query(`UPDATE records SET enrich_status = 'error', enrich_note = $2 WHERE id = $1`, [rec.id, 'Im Katalog nicht gefunden']);
     return { notes: ['Im Katalog nicht gefunden'], error: true };
   }
-  const { data, notFound } = await lookupRelease(rid);
-  if (notFound) {
+  // Erst nur die Releasedaten holen und das Format prüfen – Preise nur für Vinyl abfragen
+  const first = await lookupRelease(rid, { prices: false });
+  if (first.notFound) {
     await sql.query(`UPDATE records SET enrich_status = 'error', enrich_note = $2 WHERE id = $1`, [rec.id, 'Release-ID unbekannt']);
     return { notes: ['Release-ID unbekannt'], error: true };
   }
+  if (!first.data.info.vinyl) return noVinyl(first.data.info.formats.join(', '));
+  const { data } = await lookupRelease(rid);
   const p = data.prices;
   if (p.suggError) {
     notes.push(/seller settings/i.test(p.suggError)
       ? 'Preisvorschläge fehlen: Verkäufer-Einstellungen im Katalog-Konto ausfüllen'
       : 'Keine Preisvorschläge (Token prüfen)');
   }
-  let vals = [p.low, p.mid, p.high].filter((v) => v != null);
-  if (!vals.length && p.lowest != null) { vals = [p.lowest]; notes.push('Nur günstigstes Angebot – Preis prüfen'); }
+  // Preisvorschlag für den Zustand dieser Platte (unbekannt → VG+)
+  const cond = condCode(rec.media_condition) || 'VG+';
+  if (!condCode(rec.media_condition)) notes.push('Zustand unbekannt – VG+ angenommen');
+  const condPrice = p.byCond?.[cond] ?? null;
+  const lowest = p.lowest;
+  // Basis = Mittelwert aus günstigstem Angebot und Zustands-Vorschlag
   let avg = null;
+  if (condPrice != null && lowest != null) avg = round2((condPrice + lowest) / 2);
+  else if (lowest != null) { avg = round2(lowest); notes.push('Kein Preisvorschlag – nur günstigstes Angebot'); }
+  else if (condPrice != null) { avg = round2(condPrice); notes.push('Derzeit kein Angebot – nur Preisvorschlag'); }
   let sale = null;
-  if (vals.length) {
-    avg = round2(vals.reduce((a, b) => a + b, 0) / vals.length);
+  if (avg != null) {
     sale = round2(avg * (100 - discount) / 100);
+    // Im Rahmen der ersten Angebote bleiben: max. ±10 % zum günstigsten Angebot
+    if (lowest != null) {
+      const lo = round2(lowest * (1 - MAX_DEVIATION));
+      const hi = round2(lowest * (1 + MAX_DEVIATION));
+      if (sale < lo) { sale = lo; notes.push('auf −10 % zum günstigsten Angebot begrenzt'); }
+      if (sale > hi) { sale = hi; notes.push('auf +10 % zum günstigsten Angebot begrenzt'); }
+    }
     if (sale < minPrice) { sale = minPrice; notes.push(`Mindestpreis ${minPrice.toFixed(2)} €`); }
+    if (lowest != null) {
+      const dev = Math.round((sale / lowest - 1) * 100);
+      notes.push(`${dev > 0 ? '+' : ''}${dev} % zum günstigsten Angebot`);
+    }
   } else notes.push('Kein Preis ermittelbar – bleibt Entwurf');
 
   let cover = '';
@@ -184,7 +240,7 @@ export async function enrichRecord(rec, { discount = 10, minPrice = 0 } = {}) {
     [rec.id, rid, r2(p.low), r2(p.mid), r2(p.high), r2(p.lowest), avg, sale,
       info.genre, info.country, info.tracks || '', info.year, cover, notes.join(' · ') || null],
   );
-  return { low: p.low, mid: p.mid, high: p.high, lowest: p.lowest, avg, sale, notes, ...rows[0] };
+  return { cond, condPrice, lowest, forSale: p.forSale, avg, sale, notes, ...rows[0] };
 }
 
 // Nur Cover/Tracks/Genre/Land nachladen (für Platten ohne Preis-Ermittlung)

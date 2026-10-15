@@ -57,6 +57,7 @@ async function stats(res) {
     sql.query(`SELECT count(*)::int AS n, coalesce(sum(total), 0)::float AS revenue FROM orders WHERE status = 'completed'`),
     sql.query(`SELECT count(*)::int AS n FROM records WHERE (cover_url IS NULL OR tracks IS NULL) AND release_id IS NOT NULL`),
     sql.query(`SELECT count(*) FILTER (WHERE enrich_status = 'pending')::int AS pending, count(*) FILTER (WHERE enrich_status = 'error')::int AS errors,
+      count(*) FILTER (WHERE enrich_status = 'novinyl')::int AS novinyl,
       count(*) FILTER (WHERE enrich_status = 'done' AND enrich_note ILIKE '%Preisvorschläge%' AND status NOT IN ('sold', 'reserved'))::int AS nosugg FROM records`),
   ]);
   const s = Object.fromEntries(byStatus.map((r) => [r.status, r]));
@@ -72,6 +73,7 @@ async function stats(res) {
     missingCovers: covers[0].n,
     enrichPending: enrich[0].pending,
     enrichErrors: enrich[0].errors,
+    enrichNoVinyl: enrich[0].novinyl,
     enrichNoSugg: enrich[0].nosugg,
     coverToken: Boolean(process.env.DISCOGS_TOKEN),
     blob: Boolean(process.env.BLOB_READ_WRITE_TOKEN),
@@ -120,7 +122,7 @@ const posNum = (v) => {
 
 async function importRows(req, res) {
   const rows = Array.isArray(req.body?.rows) ? req.body.rows.slice(0, 1000) : [];
-  const discount = Math.min(90, Math.max(0, Number(req.body?.discount ?? 10)));
+  const discount = Math.min(90, Math.max(0, Number(req.body?.discount ?? 5)));
   const minPrice = Math.max(0, Number(req.body?.minPrice ?? 0));
   const auto = req.body?.auto === true;
   const batch = clean(req.body?.batch, 120);
@@ -220,9 +222,12 @@ async function update(req, res) {
 }
 
 async function reprice(req, res) {
-  const discount = Math.min(90, Math.max(0, Number(req.body?.discount ?? 10)));
+  const discount = Math.min(90, Math.max(0, Number(req.body?.discount ?? 5)));
   const rows = await db().query(
-    `UPDATE records SET price = round(avg_price * (100 - $1) / 100.0, 2), updated_at = now()
+    // Basis minus Rabatt, dabei max. ±10 % zum günstigsten Angebot (falls bekannt)
+    `UPDATE records SET price = CASE WHEN lowest_offer IS NULL THEN round(avg_price * (100 - $1) / 100.0, 2)
+       ELSE greatest(least(round(avg_price * (100 - $1) / 100.0, 2), round(lowest_offer * 1.1, 2)), round(lowest_offer * 0.9, 2)) END,
+       updated_at = now()
      WHERE avg_price IS NOT NULL AND NOT price_locked AND status IN ('available', 'draft') RETURNING id`,
     [discount],
   );
@@ -258,10 +263,10 @@ async function uploadCover(req, res) {
 
 // Eine Platte aus der Warteschlange ergänzen (der Admin-Browser ruft das Platte für Platte auf)
 async function enrichStep(req, res) {
-  const discount = Math.min(90, Math.max(0, Number(req.body?.discount ?? 10)));
+  const discount = Math.min(90, Math.max(0, Number(req.body?.discount ?? 5)));
   const minPrice = Math.max(0, Number(req.body?.minPrice ?? 0));
   const sql = db();
-  const next = await sql.query(`SELECT id, release_id, artist, title, catno FROM records WHERE enrich_status = 'pending' ORDER BY id LIMIT 1`);
+  const next = await sql.query(`SELECT id, release_id, artist, title, catno, format, media_condition FROM records WHERE enrich_status = 'pending' ORDER BY id LIMIT 1`);
   const count = async () => (await sql.query(`SELECT count(*)::int AS n FROM records WHERE enrich_status = 'pending'`))[0].n;
   if (!next.length) return send(res, 200, { done: true, remaining: 0 });
   const rec = next[0];

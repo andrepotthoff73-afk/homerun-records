@@ -132,10 +132,10 @@
       <section class="panel hidden" data-panel="import">
         <div class="card-box">
           <h2>Platten erfassen</h2>
-          <p class="muted small" style="margin-top:0">Lege einfach die CSV-Datei deiner Discogs-Sammlung ab – alles Weitere passiert automatisch: Die Platten werden angelegt, im Katalog nachgeschlagen (Preisvorschläge für VG, VG+ und NM → Durchschnitt minus Rabatt = Verkaufspreis) und mit Cover, Trackliste, Genre und Land ergänzt. Platten mit Preis gehen sofort online. Bereits erfasste Platten werden nur aktualisiert, nie doppelt angelegt.</p>
+          <p class="muted small" style="margin-top:0">Lege einfach die CSV-Datei deiner Discogs-Sammlung ab – alles Weitere passiert automatisch: Die Platten werden angelegt, im Katalog nachgeschlagen (Basis = Mittelwert aus günstigstem aktuellen Angebot und Preisvorschlag für den Zustand der Platte, davon minus Rabatt; der Verkaufspreis bleibt höchstens 10 % vom günstigsten Angebot entfernt) und mit Cover, Trackliste, Genre und Land ergänzt. Platten mit Preis gehen sofort online. Bereits erfasste Platten werden nur aktualisiert, nie doppelt angelegt.</p>
           <div class="form-grid" style="margin-bottom:14px">
             <label class="field">Rabatt auf den Durchschnitt (%)
-              <input class="input" type="number" id="discount" value="10" min="0" max="90" step="1">
+              <input class="input" type="number" id="discount" value="5" min="0" max="90" step="1">
             </label>
             <label class="field">Mindestpreis (€)
               <input class="input" type="number" id="min-price" value="0" min="0" step="0.5">
@@ -172,7 +172,7 @@
         </div>
 
         <div class="table-wrap hidden" id="e-table-wrap"><table class="t" id="e-table">
-          <thead><tr><th></th><th>Platte</th><th class="hide-m">VG</th><th class="hide-m">VG+</th><th class="hide-m">NM</th><th>Ø</th><th>Verkaufspreis</th><th class="hide-m">Hinweis</th></tr></thead>
+          <thead><tr><th></th><th>Platte</th><th class="hide-m">Zustand</th><th class="hide-m">Vorschlag</th><th class="hide-m">Günstigstes Angebot</th><th>Basis (Ø)</th><th>Verkaufspreis</th><th class="hide-m">Hinweis</th></tr></thead>
           <tbody></tbody>
         </table></div>
 
@@ -229,7 +229,7 @@
           <p class="muted small" style="margin-top:0">Berechnet den Verkaufspreis aller verfügbaren Platten und Entwürfe neu aus dem gespeicherten Ø-Marktpreis. Von Hand geänderte Preise bleiben unverändert.</p>
           <div class="toolbar">
             <label class="field" style="flex-direction:row;display:flex;align-items:center;gap:8px">Rabatt (%)
-              <input class="input" type="number" id="reprice-discount" value="10" min="0" max="90" style="width:90px">
+              <input class="input" type="number" id="reprice-discount" value="5" min="0" max="90" style="width:90px">
             </label>
             <button class="btn btn-dark" id="reprice">Neu berechnen</button>
           </div>

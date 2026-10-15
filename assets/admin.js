@@ -164,7 +164,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Rabatt & Mindestpreis merken
   try {
-    const saved = JSON.parse(localStorage.getItem('hr_enrich') || '{}');
+    const saved = JSON.parse(localStorage.getItem('hr_enrich_v2') || '{}');
     if (saved.discount != null) $('discount').value = saved.discount;
     if (saved.minPrice != null) $('min-price').value = saved.minPrice;
   } catch { /* ignorieren */ }
@@ -175,7 +175,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     };
   }
   function saveSettings() {
-    try { localStorage.setItem('hr_enrich', JSON.stringify(settingsNow())); } catch { /* ignorieren */ }
+    try { localStorage.setItem('hr_enrich_v2', JSON.stringify(settingsNow())); } catch { /* ignorieren */ }
   }
   ['discount', 'min-price'].forEach((id) => $(id).addEventListener('change', saveSettings));
 
@@ -315,6 +315,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       ['Noch offen', num(s.enrichPending), s.enrichPending ? `ca. ${num(Math.max(1, Math.ceil(s.enrichPending / 20)))} Min.` : 'alles erledigt'],
       ['Ergänzt', num(en.done), 'in dieser Sitzung'],
       ['Fehlgeschlagen', num(s.enrichErrors), s.enrichErrors ? 'erneut versuchen möglich' : '–'],
+      ['Kein Vinyl', num(s.enrichNoVinyl), s.enrichNoVinyl ? 'CDs usw. – nicht bepreist' : '–'],
       ['Im Shop', num(s.available), 'Platten online'],
     ].map(([k, v, sub]) => `<div class="kpi"><span>${k}</span><b>${v}</b><small>${sub}</small></div>`).join('');
   }
@@ -348,8 +349,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     const fmt = (v) => (v == null ? '–' : eur(v));
     $('e-table').querySelector('tbody').innerHTML = en.rows.slice(0, 200).map((r) => `<tr>
       <td><div class="thumb"><img src="${esc(r.cover_url || '/assets/vinyl.svg')}" alt="" loading="lazy" onerror="this.onerror=null;this.src='/assets/vinyl.svg'"></div></td>
-      <td><strong>${esc(r.artist)}</strong> – ${esc(r.title)}<div class="small muted">#${r.id} · <span class="st ${r.error ? 'failed' : r.status || 'draft'}">${r.error ? 'Fehler' : ({ available: 'Im Shop', draft: 'Entwurf', sold: 'Verkauft', reserved: 'Reserviert' }[r.status] || r.status)}</span></div></td>
-      <td class="num hide-m">${fmt(r.low)}</td><td class="num hide-m">${fmt(r.mid)}</td><td class="num hide-m">${fmt(r.high)}</td>
+      <td><strong>${esc(r.artist)}</strong> – ${esc(r.title)}<div class="small muted">#${r.id} · <span class="st ${r.error ? 'failed' : r.novinyl ? 'draft' : r.status || 'draft'}">${r.error ? 'Fehler' : r.novinyl ? 'Kein Vinyl' : ({ available: 'Im Shop', draft: 'Entwurf', sold: 'Verkauft', reserved: 'Reserviert' }[r.status] || r.status)}</span></div></td>
+      <td class="hide-m">${esc(r.cond || '–')}</td><td class="num hide-m">${fmt(r.condPrice)}</td><td class="num hide-m">${fmt(r.lowest)}${r.forSale ? ` <span class="muted small">(${r.forSale}×)</span>` : ''}</td>
       <td class="num">${fmt(r.avg)}</td><td class="sale">${r.price != null ? eur(r.price) : '–'}</td>
       <td class="hide-m e-note">${esc((r.notes || []).join(' · '))}</td>
     </tr>`).join('');
