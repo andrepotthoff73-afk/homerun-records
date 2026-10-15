@@ -7,3 +7,5 @@ vorschau/node_modules
 preis-tool/node_modules
 Ergebnisse
 *-collection-*.csv
+*-collection-*
+*.zip

@@ -83,8 +83,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         s.blob
           ? item('ok', 'Bildspeicher verbunden – Cover aus dem Preis-Tool werden gespeichert')
           : item('warn', 'Optional: Blob-Bildspeicher in Vercel verbinden, damit das Preis-Tool Cover hochladen kann'),
-        s.enrichPending ? item('warn', `${num(s.enrichPending)} Platte(n) warten auf Preise &amp; Cover – <a href="#" data-goto="enrich">jetzt ermitteln</a>`) : '',
-        s.enrichErrors ? item('no', `${num(s.enrichErrors)} Platte(n) konnten nicht ermittelt werden – <a href="#" data-goto="enrich">erneut versuchen</a>`) : '',
+        s.enrichPending ? item('warn', `${num(s.enrichPending)} Platte(n) warten auf Preise &amp; Cover – <a href="#" data-goto="import">jetzt ermitteln</a>`) : '',
+        s.enrichErrors ? item('no', `${num(s.enrichErrors)} Platte(n) konnten nicht ermittelt werden – <a href="#" data-goto="import">erneut versuchen</a>`) : '',
         s.reserved ? item('warn', `${num(s.reserved)} Platte(n) reserviert (laufende Zahlung)`) : '',
       ].join('');
     } catch (e) {
@@ -92,29 +92,30 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   };
 
-  // ---------- CSV-Import ----------
+  // ---------- Platten erfassen: CSV hochladen → anlegen → Preise & Cover ermitteln (automatisch) ----------
   const FIELDS = [
     ['artist', 'Künstler *', ['artist', 'künstler', 'interpret', 'band']],
     ['title', 'Titel *', ['title', 'titel', 'album']],
-    ['avg_price', 'Ø Marktpreis', ['average price', 'avg price', 'average', 'avg', 'durchschnitt', 'median', 'mittelwert', 'price', 'preis', 'value', 'wert']],
+    ['release_id', 'Release-ID', ['release_id', 'release id', 'releaseid']],
     ['label', 'Label', ['label']],
     ['catno', 'Katalognummer', ['catalog#', 'catno', 'catalog number', 'catalog', 'katalognummer', 'cat#']],
     ['format', 'Format', ['format']],
     ['released', 'Erscheinungsjahr', ['released', 'year', 'jahr', 'erschienen']],
-    ['genre', 'Genre / Stil', ['genre', 'style', 'stil']],
-    ['release_id', 'Release-ID', ['release_id', 'release id', 'releaseid']],
-    ['listing_id', 'Listing-ID', ['listing_id', 'listing id']],
     ['media_condition', 'Zustand Platte', ['collection media condition', 'media_condition', 'media condition', 'zustand platte']],
     ['sleeve_condition', 'Zustand Hülle', ['collection sleeve condition', 'sleeve_condition', 'sleeve condition', 'zustand hülle']],
-    ['description', 'Beschreibung (öffentlich)', ['comments', 'description', 'beschreibung']],
     ['notes', 'Notiz (privat)', ['collection notes', 'notes', 'notiz']],
+    ['description', 'Beschreibung (öffentlich)', ['comments', 'description', 'beschreibung']],
     ['date_added', 'Hinzugefügt am', ['date added', 'date_added', 'listed']],
-    ['cover_url', 'Cover-Bild-URL', ['image', 'cover', 'thumb']],
-    ['tracks', 'Tracks / Trackliste', ['tracklist', 'track list', 'tracks', 'titelliste']],
+    ['listing_id', 'Listing-ID', ['listing_id', 'listing id']],
+    ['avg_price', 'Ø Marktpreis (falls vorhanden)', ['average price', 'avg price', 'average', 'avg', 'durchschnitt', 'median', 'mittelwert', 'price', 'preis', 'value', 'wert']],
+    ['genre', 'Genre / Stil', ['genre', 'style', 'stil']],
     ['country', 'Land', ['country', 'land']],
+    ['tracks', 'Tracks / Trackliste', ['tracklist', 'track list', 'tracks', 'titelliste']],
+    ['cover_url', 'Cover-Bild-URL', ['image', 'cover', 'thumb']],
   ];
   let csv = { headers: [], rows: [], name: '' };
   let map = {};
+  let importing = false;
 
   function detectDelimiter(text) {
     const line = text.slice(0, text.indexOf('\n') > 0 ? text.indexOf('\n') : text.length);
@@ -138,7 +139,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       else if (ch !== '\r') f += ch;
     }
     if (f !== '' || row.length) { row.push(f); rows.push(row); }
-    return { delimiter: d, rows: rows.filter((r) => r.some((c) => c.trim() !== '')) };
+    return rows.filter((r) => r.some((c) => c.trim() !== ''));
   }
   function parsePrice(s) {
     let t = String(s ?? '').replace(/[^\d.,]/g, '');
@@ -161,25 +162,46 @@ document.addEventListener('DOMContentLoaded', async () => {
     return m;
   }
 
+  // Rabatt & Mindestpreis merken
+  try {
+    const saved = JSON.parse(localStorage.getItem('hr_enrich') || '{}');
+    if (saved.discount != null) $('discount').value = saved.discount;
+    if (saved.minPrice != null) $('min-price').value = saved.minPrice;
+  } catch { /* ignorieren */ }
+  function settingsNow() {
+    return {
+      discount: Math.min(90, Math.max(0, Number($('discount').value) || 0)),
+      minPrice: Math.max(0, Number(String($('min-price').value).replace(',', '.')) || 0),
+    };
+  }
+  function saveSettings() {
+    try { localStorage.setItem('hr_enrich', JSON.stringify(settingsNow())); } catch { /* ignorieren */ }
+  }
+  ['discount', 'min-price'].forEach((id) => $(id).addEventListener('change', saveSettings));
+
   async function readFile(file) {
     if (!file) return;
+    if (importing || en.running) { toast('Bitte warten, bis die aktuelle Liste fertig ist – oder erst anhalten.'); return; }
     const buf = await file.arrayBuffer();
     let text = new TextDecoder('utf-8').decode(buf);
     if (text.includes('�')) text = new TextDecoder('windows-1252').decode(buf); // Excel-CSV
-    const { rows, delimiter } = parseCSV(text);
+    const rows = parseCSV(text);
     if (rows.length < 2) { toast('Die Datei enthält keine Daten.'); return; }
     csv = { headers: rows[0].map((h) => h.trim()), rows: rows.slice(1), name: file.name };
     map = autoMap(csv.headers);
-    $('file-info').innerHTML = `<strong>${esc(file.name)}</strong> · ${num(csv.rows.length)} Zeilen · Trennzeichen „${delimiter === '\t' ? 'Tab' : delimiter}“`;
-    $('batch').value = file.name.replace(/\.csv$/i, '');
-    $('import-config').classList.remove('hidden');
-    $('log').classList.add('hidden');
-    $('prog-wrap').classList.add('hidden');
-    $('do-import').disabled = false;
+    $('file-info').innerHTML = `<strong>${esc(file.name)}</strong> · ${num(csv.rows.length)} Zeilen`;
     renderMapping();
     renderPreview();
+    if (map.artist == null || map.title == null) {
+      $('adv').open = true;
+      $('map-msg').innerHTML = '<div class="notice err">In dieser Datei wurden „Künstler“ und „Titel“ nicht erkannt. Bitte hier zuordnen und dann auf „Mit dieser Zuordnung erfassen“ klicken.</div>';
+      $('adv').scrollIntoView({ behavior: 'smooth' });
+      return;
+    }
+    $('map-msg').innerHTML = '';
+    runAll();
   }
-  $('file').addEventListener('change', (e) => readFile(e.target.files[0]));
+  $('file').addEventListener('change', (e) => { readFile(e.target.files[0]); e.target.value = ''; });
   const drop = $('drop');
   ['dragenter', 'dragover'].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add('over'); }));
   ['dragleave', 'drop'].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove('over'); }));
@@ -196,19 +218,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (e.target.value === '') delete map[k]; else map[k] = Number(e.target.value);
     renderPreview();
   });
-  ['discount', 'min-price'].forEach((id) => $(id).addEventListener('input', renderPreview));
-
-  function settingsNow() {
-    return {
-      discount: Math.min(90, Math.max(0, Number($('discount').value) || 0)),
-      minPrice: Math.max(0, Number($('min-price').value) || 0),
-    };
-  }
-  function calcPrice(avg, s) {
-    if (!avg) return null;
-    const p = Math.round(avg * (100 - s.discount)) / 100;
-    return Math.max(p, s.minPrice);
-  }
 
   function buildRows() {
     const get = (row, k) => (map[k] != null ? (row[map[k]] ?? '').trim() : '');
@@ -227,40 +236,41 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   function renderPreview() {
-    const s = settingsNow();
-    const rows = buildRows();
-    const valid = rows.filter((r) => r.artist && r.title);
-    const priced = valid.filter((r) => r.avg_price).length;
+    const valid = buildRows().filter((r) => r.artist && r.title);
     const missing = map.artist == null || map.title == null;
-    const auto = $('auto').checked;
-    const skippedTxt = rows.length - valid.length ? ` · ${num(rows.length - valid.length)} Zeilen ohne Künstler/Titel werden übersprungen` : '';
-    $('summary').innerHTML = missing
-      ? '<div class="notice err">Bitte ordne mindestens „Künstler“ und „Titel“ zu.</div>'
-      : auto
-        ? `<div class="notice ok"><strong>${num(valid.length)}</strong> Platten erkannt → werden importiert und anschließend automatisch mit Preis, Cover und Trackliste ergänzt (ca. ${num(Math.max(1, Math.ceil(valid.length / 20)))} Min.)${skippedTxt}</div>`
-        : `<div class="notice ${priced ? 'ok' : 'warn'}"><strong>${num(valid.length)}</strong> Platten erkannt ·
-           <strong>${num(priced)}</strong> mit Marktpreis → gehen direkt online ·
-           <strong>${num(valid.length - priced)}</strong> ohne Preis → werden als Entwurf gespeichert${skippedTxt}</div>`;
-    $('do-import').disabled = missing;
-    $('do-import').textContent = auto ? 'Importieren & Preise ermitteln' : 'Import starten';
-    $('preview').innerHTML = `<thead><tr><th>Künstler</th><th>Titel</th><th class="hide-m">Format</th><th class="hide-m">Zustand</th><th>Ø Marktpreis</th><th>Dein Preis</th></tr></thead>
-      <tbody>${valid.slice(0, 10).map((r) => `<tr>
-        <td>${esc(r.artist)}</td><td>${esc(r.title)}</td><td class="hide-m">${esc(r.format)}</td><td class="hide-m">${esc(r.media_condition)}</td>
-        <td>${auto ? '<span class="muted">wird ermittelt</span>' : r.avg_price ? eur(r.avg_price) : '<span class="muted">–</span>'}</td>
-        <td><strong>${auto ? '<span class="muted">automatisch</span>' : r.avg_price ? eur(calcPrice(r.avg_price, s)) : '<span class="st draft">Entwurf</span>'}</strong></td></tr>`).join('')}</tbody>`;
+    $('do-import').disabled = missing || !valid.length;
+    $('preview').innerHTML = `<thead><tr><th>Künstler</th><th>Titel</th><th class="hide-m">Format</th><th class="hide-m">Release-ID</th></tr></thead>
+      <tbody>${valid.slice(0, 5).map((r) => `<tr><td>${esc(r.artist)}</td><td>${esc(r.title)}</td><td class="hide-m">${esc(r.format)}</td><td class="hide-m">${esc(r.release_id)}</td></tr>`).join('')}</tbody>`;
   }
-  $('auto').addEventListener('change', renderPreview);
+  $('do-import').addEventListener('click', () => {
+    $('map-msg').innerHTML = '';
+    $('adv').open = false;
+    runAll();
+  });
 
-  $('do-import').addEventListener('click', async () => {
+  function setStep(id, state) {
+    $(id).classList.toggle('active', state === 'active');
+    $(id).classList.toggle('done', state === 'done');
+  }
+
+  // Schritt 1: alle Platten anlegen (als Entwurf, in der Warteschlange) – danach direkt Schritt 2
+  async function runAll() {
     const s = settingsNow();
+    saveSettings();
     const rows = buildRows().filter((r) => r.artist && r.title);
-    if (!rows.length) return;
-    const btn = $('do-import');
-    btn.disabled = true;
-    $('prog-wrap').classList.remove('hidden');
+    if (!rows.length) { toast('Keine Platten in der Datei gefunden.'); return; }
+    importing = true;
+    $('run-box').classList.remove('hidden');
+    setStep('step-import', 'active');
+    setStep('step-enrich', '');
+    $('e-prog').style.background = '';
+    $('e-status').textContent = 'wartet …';
+    $('e-prog').style.width = '0%';
     const log = $('log');
-    log.classList.remove('hidden');
+    log.classList.add('hidden');
     log.textContent = '';
+    $('run-box').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    const batch = csv.name.replace(/\.csv$/i, '');
     const BATCH = 400;
     const tot = { inserted: 0, updated: 0, skipped: 0 };
     for (let i = 0; i < rows.length; i += BATCH) {
@@ -268,45 +278,28 @@ document.addEventListener('DOMContentLoaded', async () => {
       let ok = false;
       for (let attempt = 1; attempt <= 3 && !ok; attempt++) {
         try {
-          const r = await call('/api/admin?action=import', { body: { rows: chunk, discount: s.discount, minPrice: s.minPrice, batch: $('batch').value, auto: $('auto').checked } });
+          const r = await call('/api/admin?action=import', { body: { rows: chunk, discount: s.discount, minPrice: s.minPrice, batch, auto: true } });
           tot.inserted += r.inserted; tot.updated += r.updated; tot.skipped += r.skipped;
           ok = true;
         } catch (e) {
+          log.classList.remove('hidden');
           log.textContent += `Fehler bei Zeile ${i + 1}–${i + chunk.length} (Versuch ${attempt}): ${e.message}\n`;
-          if (e.status === 401) { btn.disabled = false; return; }
-          await new Promise((r) => setTimeout(r, 1500 * attempt));
+          if (e.status === 401) { importing = false; return; }
+          await new Promise((res) => setTimeout(res, 1500 * attempt));
         }
       }
       const done = Math.min(rows.length, i + BATCH);
-      $('prog').style.width = `${(done / rows.length) * 100}%`;
-      $('prog-text').textContent = `${num(done)} von ${num(rows.length)} verarbeitet`;
+      $('import-text').textContent = `${num(done)} von ${num(rows.length)} angelegt …`;
+      $('e-prog').style.width = `${(done / rows.length) * 100}%`;
     }
-    log.textContent += `Fertig: ${num(tot.inserted)} neu, ${num(tot.updated)} aktualisiert, ${num(tot.skipped)} übersprungen.\n`;
-    btn.disabled = false;
-    if ($('auto').checked && tot.inserted + tot.updated > 0) {
-      // In einem Zug weiter: Preise & Cover ermitteln
-      $('e-discount').value = s.discount;
-      $('e-min').value = s.minPrice;
-      saveEnrichSettings();
-      toast('Import abgeschlossen – Preise & Cover werden jetzt ermittelt');
-      show('enrich');
-      startEnrich();
-    } else {
-      toast('Import abgeschlossen');
-    }
-  });
-
-  // ---------- Preise & Cover ermitteln (Warteschlange) ----------
-  const en = { running: false, startCount: null, done: 0, started: 0, rows: [], wake: null };
-  try {
-    const saved = JSON.parse(localStorage.getItem('hr_enrich') || '{}');
-    if (saved.discount != null) { $('e-discount').value = saved.discount; $('discount').value = saved.discount; }
-    if (saved.minPrice != null) { $('e-min').value = saved.minPrice; $('min-price').value = saved.minPrice; }
-  } catch { /* ignorieren */ }
-  function saveEnrichSettings() {
-    try { localStorage.setItem('hr_enrich', JSON.stringify({ discount: $('e-discount').value, minPrice: $('e-min').value })); } catch { /* ignorieren */ }
+    importing = false;
+    setStep('step-import', 'done');
+    $('import-text').textContent = `${num(tot.inserted)} neu, ${num(tot.updated)} aktualisiert${tot.skipped ? `, ${num(tot.skipped)} übersprungen` : ''}`;
+    startEnrich();
   }
-  ['e-discount', 'e-min'].forEach((id) => $(id).addEventListener('change', saveEnrichSettings));
+
+  // Schritt 2: Warteschlange abarbeiten – Preise, Verkaufspreis, Cover, Trackliste, Genre, Land
+  const en = { running: false, paused: false, startCount: null, done: 0, started: 0, rows: [], wake: null };
 
   function setBadge(n) {
     const b = $('enrich-badge');
@@ -314,25 +307,46 @@ document.addEventListener('DOMContentLoaded', async () => {
     b.classList.toggle('hidden', !n);
   }
 
+  let lastStats = null;
+  function renderKpis() {
+    const s = lastStats;
+    if (!s) return;
+    $('e-kpis').innerHTML = [
+      ['Noch offen', num(s.enrichPending), s.enrichPending ? `ca. ${num(Math.max(1, Math.ceil(s.enrichPending / 20)))} Min.` : 'alles erledigt'],
+      ['Ergänzt', num(en.done), 'in dieser Sitzung'],
+      ['Fehlgeschlagen', num(s.enrichErrors), s.enrichErrors ? 'erneut versuchen möglich' : '–'],
+      ['Im Shop', num(s.available), 'Platten online'],
+    ].map(([k, v, sub]) => `<div class="kpi"><span>${k}</span><b>${v}</b><small>${sub}</small></div>`).join('');
+  }
   async function enrichStats() {
     const s = await call('/api/admin?action=stats');
+    lastStats = s;
     setBadge(s.enrichPending);
-    $('e-kpis').innerHTML = [
-      ['Warteschlange', num(s.enrichPending), s.enrichPending ? `ca. ${num(Math.max(1, Math.ceil(s.enrichPending / 20)))} Min.` : 'alles erledigt'],
-      ['Fehlgeschlagen', num(s.enrichErrors), s.enrichErrors ? 'siehe Platten-Liste' : '–'],
-      ['Diese Sitzung', num(en.done), 'Platten ergänzt'],
-      ['Bildspeicher', s.blob ? 'verbunden' : 'fehlt', s.blob ? 'Cover werden gespeichert' : 'Cover kommen vom Katalog'],
-    ].map(([k, v, sub]) => `<div class="kpi"><span>${k}</span><b>${v}</b><small>${sub}</small></div>`).join('');
-    $('e-warn').textContent = s.coverToken ? '' : 'Kein Katalog-Token gesetzt (DISCOGS_TOKEN, siehe README) – ohne Token gibt es keine Preisvorschläge und nur ca. 8 Platten pro Minute.';
+    renderKpis();
+    $('e-retry').classList.toggle('hidden', !s.enrichErrors);
+    const warn = [];
+    if (!s.coverToken) warn.push('Kein Katalog-Token gesetzt (DISCOGS_TOKEN, siehe README) – ohne Token gibt es keine Preisvorschläge und nur ca. 8 Platten pro Minute.');
+    if (!s.blob) warn.push('Bildspeicher nicht verbunden – Cover werden vom Katalog-Server angezeigt.');
+    $('e-warn').textContent = warn.join(' ');
+    if (s.enrichPending || s.enrichErrors) $('run-box').classList.remove('hidden');
     return s;
   }
-  loaders.enrich = () => { if (!en.running) enrichStats().catch(() => {}); };
+
+  // Beim Öffnen der Seite eine unterbrochene Erfassung automatisch fortsetzen
+  loaders.import = async () => {
+    const s = await enrichStats().catch(() => null);
+    if (s?.enrichPending && !en.running && !importing && !en.paused) {
+      setStep('step-import', 'done');
+      if ($('import-text').textContent === '–') $('import-text').textContent = 'erledigt';
+      startEnrich();
+    }
+  };
 
   function renderEnrichRows() {
     const fmt = (v) => (v == null ? '–' : eur(v));
     $('e-table').querySelector('tbody').innerHTML = en.rows.slice(0, 200).map((r) => `<tr>
       <td><div class="thumb"><img src="${esc(r.cover_url || '/assets/vinyl.svg')}" alt="" loading="lazy" onerror="this.onerror=null;this.src='/assets/vinyl.svg'"></div></td>
-      <td><strong>${esc(r.artist)}</strong> – ${esc(r.title)}<div class="small muted">#${r.id} · <span class="st ${r.status || 'draft'}">${r.error ? 'Fehler' : ({ available: 'Im Shop', draft: 'Entwurf', sold: 'Verkauft', reserved: 'Reserviert' }[r.status] || r.status)}</span></div></td>
+      <td><strong>${esc(r.artist)}</strong> – ${esc(r.title)}<div class="small muted">#${r.id} · <span class="st ${r.error ? 'failed' : r.status || 'draft'}">${r.error ? 'Fehler' : ({ available: 'Im Shop', draft: 'Entwurf', sold: 'Verkauft', reserved: 'Reserviert' }[r.status] || r.status)}</span></div></td>
       <td class="num hide-m">${fmt(r.low)}</td><td class="num hide-m">${fmt(r.mid)}</td><td class="num hide-m">${fmt(r.high)}</td>
       <td class="num">${fmt(r.avg)}</td><td class="sale">${r.price != null ? eur(r.price) : '–'}</td>
       <td class="hide-m e-note">${esc((r.notes || []).join(' · '))}</td>
@@ -340,26 +354,35 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   async function startEnrich() {
-    if (en.running) { en.running = false; return; }
+    if (en.running) return;
     en.running = true;
+    en.paused = false;
     en.started = Date.now();
     en.startCount = null;
-    $('e-start').textContent = 'Anhalten';
-    try { en.wake = await navigator.wakeLock?.request('screen'); } catch { /* nicht unterstützt */ }
-    const body = () => ({ discount: Number($('e-discount').value) || 0, minPrice: Number(String($('e-min').value).replace(',', '.')) || 0 });
     let sessionDone = 0;
+    let finished = false;
+    $('run-box').classList.remove('hidden');
+    $('e-table-wrap').classList.remove('hidden');
+    setStep('step-enrich', 'active');
+    $('e-prog').style.background = '';
+    $('e-start').textContent = 'Anhalten';
+    $('e-start').classList.remove('hidden');
+    $('e-status').textContent = 'startet …';
+    enrichStats().catch(() => {});
+    try { en.wake = await navigator.wakeLock?.request('screen'); } catch { /* nicht unterstützt */ }
     while (en.running) {
       const t0 = Date.now();
+      const s = settingsNow();
       let r;
       try {
-        r = await call('/api/admin?action=enrich', { body: body() });
+        r = await call('/api/admin?action=enrich', { body: { discount: s.discount, minPrice: s.minPrice } });
       } catch (e) {
-        $('e-status').textContent = `Fehler: ${e.message} – neuer Versuch in 20 Sekunden`;
         if (e.status === 401) break;
+        $('e-status').textContent = `Fehler: ${e.message} – neuer Versuch in 20 Sekunden`;
         await new Promise((res) => setTimeout(res, 20000));
         continue;
       }
-      if (r.done) { $('e-status').textContent = 'Fertig – alle Platten sind ergänzt.'; toast('Preise & Cover ermittelt'); break; }
+      if (r.done) { finished = true; break; }
       if (en.startCount == null) en.startCount = r.remaining + (r.record ? 1 : 0);
       setBadge(r.remaining);
       if (r.record) {
@@ -367,6 +390,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         en.done++;
         sessionDone++;
         renderEnrichRows();
+        if (lastStats) {
+          lastStats.enrichPending = r.remaining;
+          if (r.record.error) lastStats.enrichErrors++;
+          renderKpis();
+        }
+        if (en.done % 10 === 0) enrichStats().catch(() => {});
       }
       const total = en.startCount || 1;
       $('e-prog').style.width = `${Math.min(100, ((total - r.remaining) / total) * 100)}%`;
@@ -374,23 +403,35 @@ document.addEventListener('DOMContentLoaded', async () => {
       $('e-status').textContent = r.wait
         ? 'Katalog bremst – kurze Pause …'
         : `${num(en.done)} ergänzt · noch ${num(r.remaining)} · ca. ${num(Math.max(1, Math.round((r.remaining * perItem) / 60000)))} Min.`;
+      if (!r.remaining) { finished = true; break; }
       // Tempo an das Abfrage-Limit des Katalogs anpassen (60 pro Minute, 3 pro Platte)
       const pause = r.wait ? r.wait * 1000 : r.rate != null && r.rate < 6 ? 15000 : Math.max(0, 3100 - (Date.now() - t0));
       await new Promise((res) => setTimeout(res, pause));
-      if (!r.remaining) { $('e-status').textContent = 'Fertig – alle Platten sind ergänzt.'; toast('Preise & Cover ermittelt'); break; }
     }
     en.running = false;
-    $('e-start').textContent = 'Ermittlung starten';
     try { await en.wake?.release(); } catch { /* ignorieren */ }
+    if (finished) {
+      setStep('step-enrich', 'done');
+      $('e-prog').style.width = '100%';
+      $('e-prog').style.background = 'var(--ok)';
+      $('e-status').textContent = `Fertig – ${num(en.done)} Platten ergänzt.`;
+      $('e-start').classList.add('hidden');
+      toast('Erfassung abgeschlossen');
+    } else {
+      $('e-start').textContent = 'Fortsetzen';
+      $('e-status').textContent = 'Angehalten – mit „Fortsetzen“ geht es weiter.';
+    }
     enrichStats().catch(() => {});
   }
-  $('e-start').addEventListener('click', startEnrich);
+  $('e-start').addEventListener('click', () => {
+    if (en.running) { en.running = false; en.paused = true; $('e-start').textContent = 'Wird angehalten …'; } else startEnrich();
+  });
   $('e-retry').addEventListener('click', async () => {
     const r = await call('/api/admin?action=enrich-retry', { body: {} });
-    toast(`${num(r.changed)} Platte(n) wieder in der Warteschlange`);
-    enrichStats();
+    toast(`${num(r.changed)} Platte(n) werden erneut ermittelt`);
+    startEnrich();
   });
-  window.addEventListener('beforeunload', (e) => { if (en.running) { e.preventDefault(); e.returnValue = ''; } });
+  window.addEventListener('beforeunload', (e) => { if (en.running || importing) { e.preventDefault(); e.returnValue = ''; } });
 
   // ---------- Platten ----------
   const rec = { page: 1, items: [], selected: new Set(), total: 0 };
@@ -495,9 +536,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   async function mutate(op, ids) {
     try {
       const r = await call('/api/admin?action=update', { body: { op, ids } });
-      const labels = { sold: 'als verkauft markiert', available: 'wieder verfügbar', draft: 'versteckt', delete: 'gelöscht', enrich: 'für Preise & Cover vorgemerkt (Reiter „Preise & Cover“)' };
+      const labels = { sold: 'als verkauft markiert', available: 'wieder verfügbar', draft: 'versteckt', delete: 'gelöscht', enrich: 'werden neu ermittelt' };
       toast(`${r.changed} Platte(n) ${labels[op] || 'geändert'}${op === 'available' && r.changed < ids.length ? ' (ohne Preis bleiben versteckt)' : ''}`);
       loadRecords();
+      if (op === 'enrich' && r.changed) startEnrich();
     } catch (err) { toast(err.message); }
   }
 

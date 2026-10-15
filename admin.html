@@ -67,6 +67,15 @@
     .login { max-width: 380px; margin: 10vh auto; background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 28px; box-shadow: var(--shadow); display: grid; gap: 14px; }
     .login .brand { color: var(--ink); justify-content: center; }
     .row-actions { display: flex; gap: 6px; }
+    .steps { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
+    .step { display: flex; gap: 12px; align-items: flex-start; padding: 12px; border: 1px solid var(--line); border-radius: var(--radius); opacity: .55; }
+    .step.active { opacity: 1; border-color: var(--accent); background: var(--accent-soft); }
+    .step.done { opacity: 1; border-color: #b9e0c8; background: var(--ok-soft); }
+    .step-num { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; font-weight: 800; background: var(--bg-3); flex-shrink: 0; }
+    .step.active .step-num { background: var(--accent); color: #fff; }
+    .step.done .step-num { background: var(--ok); color: #fff; }
+    details#adv summary { cursor: pointer; }
+    @media (max-width: 640px) { .steps { grid-template-columns: 1fr; } }
     .auto-box { display: flex; gap: 12px; align-items: flex-start; background: var(--ok-soft); border: 1px solid #b9e0c8; border-radius: var(--radius); padding: 14px; margin-bottom: 14px; cursor: pointer; }
     .auto-box input { margin-top: 4px; width: 18px; height: 18px; accent-color: var(--ok); flex-shrink: 0; }
     .tabs .badge { margin-left: 4px; vertical-align: 1px; }
@@ -105,8 +114,7 @@
     </div></div>
     <nav class="tabs"><div class="wrap">
       <button data-tab="overview" class="active">Übersicht</button>
-      <button data-tab="import">CSV-Import</button>
-      <button data-tab="enrich">Preise &amp; Cover <span class="badge hidden" id="enrich-badge" data-n="1">0</span></button>
+      <button data-tab="import">Platten erfassen <span class="badge hidden" id="enrich-badge" data-n="1">0</span></button>
       <button data-tab="records">Platten &amp; Verkauft</button>
       <button data-tab="orders">Bestellungen</button>
       <button data-tab="tools">Werkzeuge</button>
@@ -122,85 +130,60 @@
         </div>
       </section>
 
-      <!-- Import -->
+      <!-- Platten erfassen: CSV hochladen → anlegen → Preise & Cover ermitteln (alles automatisch) -->
       <section class="panel hidden" data-panel="import">
         <div class="card-box">
-          <h2>1. CSV-Liste hochladen</h2>
-          <p class="muted small" style="margin-top:0">Ziehe eine CSV-Datei hierher (Export deiner Sammlung oder deines Inventars). Bereits importierte Platten werden erkannt und nur aktualisiert – nichts wird doppelt angelegt.</p>
+          <h2>Platten erfassen</h2>
+          <p class="muted small" style="margin-top:0">Lege einfach die CSV-Datei deiner Discogs-Sammlung ab – alles Weitere passiert automatisch: Die Platten werden angelegt, im Katalog nachgeschlagen (Preisvorschläge für VG, VG+ und NM → Durchschnitt minus Rabatt = Verkaufspreis) und mit Cover, Trackliste, Genre und Land ergänzt. Platten mit Preis gehen sofort online. Bereits erfasste Platten werden nur aktualisiert, nie doppelt angelegt.</p>
+          <div class="form-grid" style="margin-bottom:14px">
+            <label class="field">Rabatt auf den Durchschnitt (%)
+              <input class="input" type="number" id="discount" value="10" min="0" max="90" step="1">
+            </label>
+            <label class="field">Mindestpreis (€)
+              <input class="input" type="number" id="min-price" value="0" min="0" step="0.5">
+            </label>
+          </div>
           <label class="drop" id="drop">
             <input type="file" accept=".csv,text/csv" id="file">
-            <strong>CSV-Datei auswählen</strong> oder hierher ziehen
-            <div class="small muted" id="file-info" style="margin-top:6px">Komma, Semikolon oder Tab als Trennzeichen</div>
+            <strong>CSV-Datei hier ablegen</strong> oder klicken zum Auswählen
+            <div class="small muted" id="file-info" style="margin-top:6px">Der Vorgang startet sofort nach dem Hochladen</div>
           </label>
         </div>
 
-        <div id="import-config" class="hidden">
-          <div class="card-box">
-            <h2>2. Preise</h2>
-            <label class="auto-box">
-              <input type="checkbox" id="auto" checked>
-              <span><strong>Preise, Cover &amp; Tracklisten automatisch ermitteln</strong><br>
-              <span class="muted small">Nach dem Import wird jede Platte im Katalog nachgeschlagen: Preisvorschläge für VG, VG+ und NM → Durchschnitt minus Rabatt = Verkaufspreis. Cover, Trackliste, Genre und Land kommen automatisch dazu. Eine Preisspalte in der CSV ist dann nicht nötig.</span></span>
-            </label>
-            <div class="form-grid">
-              <label class="field">Rabatt auf Ø-Marktpreis (%)
-                <input class="input" type="number" id="discount" value="10" min="0" max="90" step="1">
-              </label>
-              <label class="field">Mindestpreis (€)
-                <input class="input" type="number" id="min-price" value="0" min="0" step="0.5">
-              </label>
-              <label class="field">Name der Liste
-                <input class="input" id="batch" placeholder="z. B. Regal 3 – Jazz">
-              </label>
+        <div class="card-box hidden" id="run-box">
+          <div class="steps">
+            <div class="step" id="step-import">
+              <span class="step-num">1</span>
+              <div><strong>Platten anlegen</strong><div class="small muted" id="import-text">–</div></div>
             </div>
-          </div>
-          <div class="card-box">
-            <h2>3. Spalten zuordnen</h2>
-            <p class="muted small" style="margin-top:0">Die Spalten wurden automatisch erkannt – in der Regel musst du hier nichts ändern. Wichtig ist die <strong>Release-ID</strong>, damit jede Platte eindeutig im Katalog gefunden wird. Ohne automatische Ermittlung wird der Verkaufspreis aus <strong>„Ø Marktpreis“</strong> berechnet; Platten ohne Preis bleiben als <em>Entwurf</em> unsichtbar, bis ein Preis eingetragen ist.</p>
-            <div class="form-grid" id="mapping"></div>
-          </div>
-          <div class="card-box">
-            <h2>4. Vorschau &amp; Import</h2>
-            <div id="summary" style="margin-bottom:12px"></div>
-            <div class="table-wrap"><table class="t" id="preview"></table></div>
-            <div style="display:flex;gap:12px;align-items:center;margin-top:16px;flex-wrap:wrap">
-              <button class="btn btn-primary btn-lg" id="do-import">Import starten</button>
-              <div style="flex:1;min-width:200px" class="hidden" id="prog-wrap">
-                <div class="progress"><div id="prog"></div></div>
-                <div class="small muted" id="prog-text" style="margin-top:4px"></div>
-              </div>
+            <div class="step" id="step-enrich">
+              <span class="step-num">2</span>
+              <div><strong>Preise &amp; Cover ermitteln</strong><div class="small muted" id="e-status">–</div></div>
             </div>
-            <div class="log hidden" id="log"></div>
-          </div>
-        </div>
-      </section>
-
-      <!-- Preise & Cover ermitteln -->
-      <section class="panel hidden" data-panel="enrich">
-        <div class="kpis" id="e-kpis"></div>
-        <div class="card-box">
-          <h2>Preise &amp; Cover ermitteln</h2>
-          <p class="muted small" style="margin-top:0">Arbeitet die Warteschlange Platte für Platte ab – etwa 20 Platten pro Minute (Grenze des Katalogs). <strong>Lass dieses Fenster geöffnet</strong>; du kannst jederzeit anhalten und später weitermachen. Bereits nachgeschlagene Releases (z. B. doppelte Platten) gehen sofort.</p>
-          <div class="form-grid" style="margin-bottom:14px">
-            <label class="field">Rabatt auf den Durchschnitt (%)
-              <input class="input" type="number" id="e-discount" value="10" min="0" max="90" step="1">
-            </label>
-            <label class="field">Mindestpreis (€)
-              <input class="input" type="number" id="e-min" value="0" min="0" step="0.5">
-            </label>
-          </div>
-          <div class="toolbar">
-            <button class="btn btn-primary btn-lg" id="e-start">Ermittlung starten</button>
-            <button class="btn" id="e-retry">Fehlgeschlagene erneut versuchen</button>
-            <span class="small muted" id="e-status"></span>
           </div>
           <div class="progress"><div id="e-prog"></div></div>
-          <div id="e-warn" class="small" style="margin-top:10px;color:var(--warn)"></div>
+          <div class="kpis" id="e-kpis" style="margin:16px 0 0"></div>
+          <div class="toolbar" style="margin:4px 0 0">
+            <button class="btn" id="e-start">Anhalten</button>
+            <button class="btn hidden" id="e-retry">Fehlgeschlagene erneut versuchen</button>
+            <span class="small muted">Lass dieses Fenster geöffnet, bis alles fertig ist (ca. 20 Platten pro Minute).</span>
+          </div>
+          <div id="e-warn" class="small" style="margin-top:8px;color:var(--warn)"></div>
+          <div class="log hidden" id="log"></div>
         </div>
-        <div class="table-wrap"><table class="t" id="e-table">
+
+        <div class="table-wrap hidden" id="e-table-wrap"><table class="t" id="e-table">
           <thead><tr><th></th><th>Platte</th><th class="hide-m">VG</th><th class="hide-m">VG+</th><th class="hide-m">NM</th><th>Ø</th><th>Verkaufspreis</th><th class="hide-m">Hinweis</th></tr></thead>
-          <tbody><tr><td colspan="8" class="muted" style="padding:20px">Noch keine Platten in dieser Sitzung ermittelt.</td></tr></tbody>
+          <tbody></tbody>
         </table></div>
+
+        <details class="card-box" id="adv" style="margin-top:18px">
+          <summary><strong>Spalten-Zuordnung</strong> <span class="muted small">– nur nötig, wenn eine Datei nicht automatisch erkannt wird</span></summary>
+          <div id="map-msg" style="margin-top:12px"></div>
+          <div class="form-grid" id="mapping" style="margin-top:12px"></div>
+          <div class="table-wrap" style="margin-top:12px"><table class="t" id="preview"></table></div>
+          <button class="btn btn-primary" id="do-import" style="margin-top:12px" disabled>Mit dieser Zuordnung erfassen</button>
+        </details>
       </section>
 
       <!-- Platten -->
