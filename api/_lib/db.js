@@ -48,6 +48,21 @@ const SCHEMA = [
   `ALTER TABLE records ADD COLUMN IF NOT EXISTS price_high numeric(10,2)`,
   `ALTER TABLE records ADD COLUMN IF NOT EXISTS lowest_offer numeric(10,2)`,
   `CREATE INDEX IF NOT EXISTS records_enrich_idx ON records (enrich_status, id)`,
+  // Kundenkonten (Mitgliederbereich) – Lieferadresse kommt immer aus PayPal, wird hier nicht gespeichert
+  `CREATE TABLE IF NOT EXISTS customers (
+    id            serial PRIMARY KEY,
+    email         text UNIQUE NOT NULL,
+    name          text NOT NULL,
+    password_hash text NOT NULL,
+    created_at    timestamptz NOT NULL DEFAULT now(),
+    last_login    timestamptz
+  )`,
+  `CREATE TABLE IF NOT EXISTS wishlist (
+    customer_id int NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+    record_id   int NOT NULL REFERENCES records(id) ON DELETE CASCADE,
+    created_at  timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (customer_id, record_id)
+  )`,
   `CREATE TABLE IF NOT EXISTS release_cache (
     release_id bigint PRIMARY KEY,
     data       jsonb NOT NULL,
@@ -71,6 +86,7 @@ const SCHEMA = [
     created_at       timestamptz NOT NULL DEFAULT now(),
     completed_at     timestamptz
   )`,
+  `ALTER TABLE orders ADD COLUMN IF NOT EXISTS customer_id int`,
 ];
 
 let ready;

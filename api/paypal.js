@@ -3,6 +3,7 @@
 import { db, ensureSchema } from './_lib/db.js';
 import { send, intIds, isJson, cents, money, shippingFor } from './_lib/util.js';
 import { paypal } from './_lib/paypal.js';
+import { customerId } from './_lib/kunde.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST' || !isJson(req)) return send(res, 405, { error: 'Nur POST/JSON erlaubt' });
@@ -73,9 +74,9 @@ async function createOrder(req, res) {
   }
 
   await sql.query(
-    `INSERT INTO orders (paypal_order_id, record_ids, items, item_total, shipping, total)
-     VALUES ($1, $2::int[], $3::jsonb, $4, $5, $6)`,
-    [r.data.id, ids, JSON.stringify(items), money(itemCents), money(shipCents), money(itemCents + shipCents)],
+    `INSERT INTO orders (paypal_order_id, record_ids, items, item_total, shipping, total, customer_id)
+     VALUES ($1, $2::int[], $3::jsonb, $4, $5, $6, $7)`,
+    [r.data.id, ids, JSON.stringify(items), money(itemCents), money(shipCents), money(itemCents + shipCents), customerId(req)],
   );
   send(res, 200, { id: r.data.id });
 }

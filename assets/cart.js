@@ -63,7 +63,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           <div class="line total"><span>Gesamt</span><span>${eur(t.total)}</span></div>
           <div id="pay-msg"></div>
           <div id="paypal-buttons"></div>
-          <p class="small muted" style="margin:0">Mit dem Kauf akzeptierst du unsere <a href="/rechtliches#agb">AGB</a> und die <a href="/rechtliches#widerruf">Widerrufsbelehrung</a>. Lieferadresse und Zahlung laufen über PayPal.</p>
+          <p class="small muted" style="margin:0">Mit dem Kauf akzeptierst du unsere <a href="/rechtliches#agb">AGB</a> und die <a href="/rechtliches#widerruf">Widerrufsbelehrung</a>. <strong>Versand ausschließlich an die in deinem PayPal-Konto hinterlegte Adresse.</strong></p>
         </aside>
       </div>`;
     mountPayPal();

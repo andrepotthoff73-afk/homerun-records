@@ -281,3 +281,45 @@ label.field { display: grid; gap: 4px; font-size: .85rem; font-weight: 600; colo
 .prose { max-width: 760px; padding-bottom: 56px; }
 .prose h2 { margin-top: 2em; padding-top: .5em; border-top: 1px solid var(--line); }
 .prose .placeholder { background: var(--warn-soft); border-left: 3px solid var(--warn); padding: 10px 14px; border-radius: 4px; }
+
+/* ---------- Kundenkonto ---------- */
+.account-link { display: inline-flex; align-items: center; gap: 6px; }
+.account-link svg { width: 21px; height: 21px; }
+.wish-btn svg { color: var(--accent); }
+.wish-btn.on { background: var(--accent-soft); border-color: #f3c2bc; color: var(--accent-ink); }
+.wish-btn.on svg { fill: var(--accent); }
+.auth { display: grid; grid-template-columns: minmax(0, 440px) minmax(0, 1fr); gap: 32px; padding: 32px 0 56px; align-items: start; }
+.auth-card { background: #fff; border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); overflow: hidden; }
+.auth-tabs { display: grid; grid-template-columns: 1fr 1fr; border-bottom: 1px solid var(--line); }
+.auth-tabs button { border: 0; background: var(--bg-2); padding: 14px; font-weight: 700; cursor: pointer; color: var(--ink-2); }
+.auth-tabs button.active { background: #fff; color: var(--ink); box-shadow: inset 0 -3px 0 var(--accent); }
+.auth-form { display: grid; gap: 14px; padding: 22px; }
+.auth-info { padding-top: 8px; }
+.perks { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
+.perks li { display: flex; gap: 10px; align-items: flex-start; }
+.perks svg { color: var(--ok); flex-shrink: 0; margin-top: 3px; }
+.member { display: grid; grid-template-columns: 220px 1fr; gap: 28px; padding-bottom: 56px; align-items: start; }
+.member-nav { display: grid; gap: 4px; position: sticky; top: 124px; }
+.member-nav button { text-align: left; border: 0; background: none; padding: 10px 12px; border-radius: 6px; font-weight: 600; cursor: pointer; color: var(--ink-2); }
+.member-nav button:hover { background: var(--bg-2); }
+.member-nav button.active { background: var(--ink); color: #fff; }
+.member-nav #logout { margin-top: 12px; color: var(--accent-ink); }
+.kpi-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 14px; }
+.kpi-card { border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; color: var(--ink); text-decoration: none !important; display: block; }
+a.kpi-card:hover { border-color: var(--ink-3); }
+.kpi-card span { font-size: .75rem; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-3); font-weight: 700; }
+.kpi-card b { display: block; font-size: 1.6rem; font-weight: 800; margin-top: 4px; }
+.order { border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; margin-bottom: 14px; }
+.order header { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; margin-bottom: 10px; }
+.order ul { list-style: none; padding: 0; margin: 0 0 10px; border-top: 1px solid var(--line); }
+.order li { display: flex; justify-content: space-between; gap: 12px; padding: 7px 0; border-bottom: 1px solid var(--line); font-size: .92rem; }
+.card-panel { border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; display: grid; gap: 12px; max-width: 520px; }
+.card-panel h2 { font-size: 1.05rem; margin: 0; }
+.x-wish { border: 0; background: none; color: var(--ink-3); font-size: .8rem; text-decoration: underline; cursor: pointer; padding: 0; align-self: flex-start; }
+@media (max-width: 820px) {
+  .auth, .member { grid-template-columns: 1fr; }
+  .member-nav { position: static; display: flex; overflow-x: auto; gap: 6px; scrollbar-width: none; }
+  .member-nav::-webkit-scrollbar { display: none; }
+  .member-nav button { white-space: nowrap; }
+  .member-nav #logout { margin: 0 0 0 auto; }
+}

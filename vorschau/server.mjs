@@ -26,7 +26,7 @@ fs.symlinkSync(path.join(here, 'node_modules'), path.join(app, 'node_modules'), 
 
 process.env.ADMIN_PASSWORD ||= 'vorschau12345';
 const handlers = {};
-for (const n of ['shop', 'paypal', 'admin']) handlers[n] = (await import(pathToFileURL(path.join(app, 'api', `${n}.js`)))).default;
+for (const n of ['shop', 'paypal', 'admin', 'konto']) handlers[n] = (await import(pathToFileURL(path.join(app, 'api', `${n}.js`)))).default;
 
 // Beispielplatten anlegen
 const { db, ensureSchema } = await import(pathToFileURL(path.join(app, 'api', '_lib', 'db.js')));
@@ -53,6 +53,29 @@ for (const [i, d] of demo.entries()) {
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'Vorschau') ON CONFLICT DO NOTHING`,
     [`demo${i}`, ...d.slice(0, 6), d[6], Math.round(d[6] * 90) / 100, d[7], d[8], demoMeta[i][0], demoMeta[i][1].join('\n')],
   );
+}
+
+// Demo-Kunde mit einer Beispielbestellung (nur Vorschau). Zugangsdaten stehen in der Konsole.
+const DEMO_EMAIL = 'demo@homerun.test';
+const DEMO_PW = 'demo-kunde-2026';
+{
+  const { hashPassword } = await import(pathToFileURL(path.join(app, 'api', '_lib', 'kunde.js')));
+  const c = await db().query(
+    `INSERT INTO customers (email, name, password_hash) VALUES ($1, 'Demo Kunde', $2) ON CONFLICT (email) DO NOTHING RETURNING id`,
+    [DEMO_EMAIL, hashPassword(DEMO_PW)],
+  );
+  if (c.length) {
+    const rec = (await db().query(`SELECT id, artist, title, price FROM records WHERE import_key = 'demo1'`))[0];
+    await db().query(`UPDATE records SET status = 'sold', sold_at = now() WHERE id = $1`, [rec.id]);
+    const items = [{ name: `${rec.artist} – ${rec.title}`, sku: String(rec.id), quantity: '1', unit_amount: { currency_code: 'EUR', value: Number(rec.price).toFixed(2) } }];
+    await db().query(
+      `INSERT INTO orders (paypal_order_id, record_ids, items, item_total, shipping, total, status, payer_email, payer_name, shipping_address, customer_id, completed_at)
+       VALUES ('DEMO-4711', ARRAY[$1]::int[], $2::jsonb, $3, 5.90, $3 + 5.90, 'completed', $4, 'Demo Kunde', $5::jsonb, $6, now())`,
+      [rec.id, JSON.stringify(items), rec.price, DEMO_EMAIL,
+        JSON.stringify({ address_line_1: 'Musterstraße 1', postal_code: '47051', admin_area_2: 'Duisburg', country_code: 'DE' }), c[0].id],
+    );
+    await db().query(`INSERT INTO wishlist (customer_id, record_id) SELECT $1, id FROM records WHERE import_key IN ('demo0', 'demo4')`, [c[0].id]);
+  }
 }
 
 const types = { '.html': 'text/html; charset=utf-8', '.css': 'text/css', '.js': 'text/javascript', '.svg': 'image/svg+xml', '.csv': 'text/csv', '.txt': 'text/plain' };
@@ -84,6 +107,7 @@ http.createServer(async (req, res) => {
   console.log('  Homerun Records Vorschau laeuft:');
   console.log(`  Shop:  http://localhost:${PORT}/`);
   console.log(`  Admin: http://localhost:${PORT}/admin   (Passwort: ${process.env.ADMIN_PASSWORD})`);
+  console.log(`  Kunde: http://localhost:${PORT}/konto   (Demo: ${DEMO_EMAIL} / ${DEMO_PW})`);
   console.log('');
   console.log('  Zum Beenden dieses Fenster schliessen.');
 });

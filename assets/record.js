@@ -64,9 +64,26 @@ document.addEventListener('DOMContentLoaded', async () => {
              ${rec.avg_price ? `<div class="was">Marktpreis <s>${eur(rec.avg_price)}</s>${d > 0 ? ` <span class="save">Du sparst ${eur(rec.avg_price - rec.price)}</span>` : ''}</div>` : ''}
              ${cartButton(rec, 'btn-block btn-lg')}
              <ul>${perks.map((p) => `<li>${ICON.check}<span>${p}</span></li>`).join('')}</ul>
-             <p class="small muted" style="margin:0">Einzelstück – nur 1× vorhanden. zzgl. <a href="/rechtliches#versand">Versand</a>.</p>`}
+             <p class="small muted" style="margin:0">Einzelstück – nur 1× vorhanden. zzgl. <a href="/rechtliches#versand">Versand</a>. Versand an deine PayPal-Adresse.</p>`}
+        <button class="btn btn-block wish-btn" id="wish">${ICON.heart} Merken</button>
       </aside>
     </div>`;
+
+  // Merkliste (nur für angemeldete Kunden)
+  const wishBtn = document.getElementById('wish');
+  let wished = false;
+  const paintWish = () => { wishBtn.classList.toggle('on', wished); wishBtn.innerHTML = `${ICON.heart} ${wished ? 'Gemerkt' : 'Merken'}`; };
+  HR.me().then(async (c) => {
+    if (!c) return;
+    try { wished = (await api('/api/konto?action=wishlist')).items.some((r) => r.id === rec.id); paintWish(); } catch { /* egal */ }
+  });
+  wishBtn.addEventListener('click', async () => {
+    if (!(await HR.me())) { location.href = `/konto?next=${encodeURIComponent(location.pathname + location.search)}`; return; }
+    wished = !wished;
+    paintWish();
+    await api('/api/konto?action=wishlist', { body: { record_id: rec.id, remove: !wished } }).catch(() => {});
+    HR.toast(wished ? 'Auf deiner Merkliste' : 'Von der Merkliste entfernt');
+  });
 
   try {
     const data = await api(`/api/shop?action=list&artist_exact=${encodeURIComponent(rec.artist)}&exclude=${rec.id}&per=12`);
