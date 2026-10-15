@@ -158,6 +158,7 @@ const HR = (() => {
           <a href="/rechtliches#impressum">Impressum</a>
           <a href="/rechtliches#datenschutz">Datenschutz</a>
           <a href="/rechtliches#widerruf">Widerruf &amp; AGB</a>
+          <a href="#" data-cookie-open>Cookie-Hinweis</a>
         </div>
       </div>
       <div class="legal">© ${new Date().getFullYear()} Homerun Records · Alle Preise inkl. MwSt. · zzgl. Versand</div>
@@ -165,7 +166,39 @@ const HR = (() => {
   }
 
   window.addEventListener('storage', (e) => { if (e.key === KEY) updateBadge(); });
-  document.addEventListener('DOMContentLoaded', () => { header(); footer(); });
+  // ---------- Cookie-Hinweis ----------
+  // Es werden nur technisch notwendige Speicherungen genutzt (§ 25 Abs. 2 TDDDG) – daher ein Hinweis, keine Einwilligungsabfrage.
+  const COOKIE_KEY = 'hr_cookie_hinweis';
+  function cookieNotice(force = false) {
+    if (location.pathname.startsWith('/admin')) return;
+    let seen = false;
+    try { seen = localStorage.getItem(COOKIE_KEY) === '1'; } catch { /* privat-Modus */ }
+    if (seen && !force) return;
+    document.querySelector('.cookie-banner')?.remove();
+    const el = document.createElement('div');
+    el.className = 'cookie-banner';
+    el.setAttribute('role', 'dialog');
+    el.setAttribute('aria-label', 'Hinweis zu Cookies');
+    el.innerHTML = `
+      <strong>Cookies &amp; Datenschutz</strong>
+      <p>Wir verwenden <strong>nur technisch notwendige Cookies</strong> und Browser-Speicher – für deinen Warenkorb, dein Lieferland und die Anmeldung im Kundenkonto. Es gibt <strong>kein Tracking und keine Werbung</strong>. Beim Bezahlen werden die Bezahlknöpfe von PayPal geladen.</p>
+      <div class="cookie-actions">
+        <button class="btn btn-primary btn-sm" data-cookie-ok>Verstanden</button>
+        <a class="btn btn-sm" href="/rechtliches#datenschutz">Datenschutzerklärung</a>
+      </div>`;
+    el.querySelector('[data-cookie-ok]').addEventListener('click', () => {
+      try { localStorage.setItem(COOKIE_KEY, '1'); } catch { /* egal */ }
+      el.remove();
+    });
+    document.body.append(el);
+  }
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('[data-cookie-open]')) return;
+    e.preventDefault();
+    cookieNotice(true);
+  });
+
+  document.addEventListener('DOMContentLoaded', () => { header(); footer(); cookieNotice(); });
 
   return { api, esc, eur, num, cover, imgTag, discount, cart, cartButton, bindCartButtons, toast, ICON, me, setAccount };
 })();
