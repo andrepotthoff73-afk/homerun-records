@@ -2,7 +2,7 @@
 document.addEventListener('DOMContentLoaded', async () => {
   const { api, esc, eur, imgTag, cart, ICON } = HR;
   const root = document.getElementById('cart');
-  let config = { shipping: 6.19, perPackage: 8, freeFrom: 0, paypalClientId: '' };
+  let config = { shipping: 7.5, perPackage: 8, freeFrom: 0, paypalClientId: '' };
   let message = '';
 
   try { config = await api('/api/shop?action=config'); } catch { /* Standardwerte */ }

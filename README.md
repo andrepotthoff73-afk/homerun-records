@@ -36,7 +36,7 @@ Vercel-Projekt → **Settings → Environment Variables**:
 | `PAYPAL_CLIENT_ID` | aus [developer.paypal.com](https://developer.paypal.com) → Apps & Credentials |
 | `PAYPAL_CLIENT_SECRET` | ebenda |
 | `PAYPAL_MODE` | `sandbox` zum Testen, danach `live` |
-| `SHIPPING_EUR` | Versandkosten je Paket (bis 8 Platten): `6.19` |
+| `SHIPPING_EUR` | Versandkosten je Paket (bis 8 Platten): `7.50` |
 | `FREE_SHIPPING_FROM` | optional: versandkostenfrei ab Betrag, z. B. `100` (0 = aus) |
 | `DISCOGS_TOKEN` | **empfohlen**, für Cover, Tracklisten, Genre und Land (nötig für die Track-Suche): [discogs.com/settings/developers](https://www.discogs.com/settings/developers) → „Generate token“ |
 

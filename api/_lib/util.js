@@ -12,8 +12,8 @@ const num = (v, d) => {
 
 export function settings() {
   return {
-    // Versand: pro Paket (max. 8 Platten je Paket) 6,19 €
-    shipping: num(process.env.SHIPPING_EUR, 6.19),
+    // Versand: pro Paket (max. 8 Platten je Paket) 7,50 €
+    shipping: num(process.env.SHIPPING_EUR, 7.5),
     perPackage: Math.max(1, parseInt(process.env.SHIPPING_PER_PACKAGE, 10) || 8),
     freeFrom: num(process.env.FREE_SHIPPING_FROM, 0),
   };
