@@ -48,3 +48,6 @@ export function shippingFor(itemCents, count = 1, country = 'DE') {
   if (zoneOf(country) === 'DE' && s.freeFrom > 0 && itemCents >= cents(s.freeFrom)) return 0;
   return Math.ceil(Math.max(1, count) / s.perPackage) * price;
 }
+
+// Bildspeicher (Vercel Blob) verbunden? Neue Projekte: BLOB_STORE_ID (Anmeldung über OIDC), ältere: BLOB_READ_WRITE_TOKEN
+export const blobConfigured = () => Boolean(process.env.BLOB_STORE_ID || process.env.BLOB_READ_WRITE_TOKEN);

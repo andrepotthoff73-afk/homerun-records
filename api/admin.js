@@ -1,7 +1,7 @@
 // Passwortgeschützte Admin-API: Login, CSV-Import, Platten verwalten, Bestellungen
 import crypto from 'node:crypto';
 import { db, ensureSchema } from './_lib/db.js';
-import { send, intIds, isJson, likeEsc } from './_lib/util.js';
+import { send, intIds, isJson, likeEsc, blobConfigured } from './_lib/util.js';
 import { isAdmin, checkPassword, passwordConfigured, setSession, clearSession } from './_lib/auth.js';
 import { fetchCover, enrichRecord, rateRemaining } from './_lib/katalog.js';
 
@@ -76,7 +76,7 @@ async function stats(res) {
     enrichNoVinyl: enrich[0].novinyl,
     enrichNoSugg: enrich[0].nosugg,
     coverToken: Boolean(process.env.DISCOGS_TOKEN),
-    blob: Boolean(process.env.BLOB_READ_WRITE_TOKEN),
+    blob: blobConfigured(),
     paypal: Boolean(process.env.PAYPAL_CLIENT_ID && process.env.PAYPAL_CLIENT_SECRET),
     paypalMode: process.env.PAYPAL_MODE === 'live' ? 'live' : 'sandbox',
   });
@@ -248,7 +248,7 @@ async function coverStep(res) {
 
 // Cover-Bild vom Preis-Tool entgegennehmen und im Vercel-Blob-Speicher ablegen
 async function uploadCover(req, res) {
-  if (!process.env.BLOB_READ_WRITE_TOKEN) {
+  if (!blobConfigured()) {
     return send(res, 400, { error: 'Bildspeicher nicht verbunden: In Vercel unter „Storage“ einen Blob-Speicher anlegen, mit dem Projekt verbinden und neu deployen.' });
   }
   const { put } = await import('@vercel/blob');

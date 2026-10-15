@@ -1,4 +1,5 @@
 import { db } from './db.js';
+import { blobConfigured } from './util.js';
 
 // Zugriff auf die Katalog-API (Token: DISCOGS_TOKEN). Dieser Code läuft nur auf dem Server.
 const UA = 'HomerunRecords/1.0';
@@ -126,7 +127,7 @@ async function storeCover(id, data) {
   if (data.coverUrl) return data.coverUrl;
   const src = data.info?.image;
   if (!src) return '';
-  if (!process.env.BLOB_READ_WRITE_TOKEN) return src;
+  if (!blobConfigured()) return src;
   const r = await fetch(src, { headers: { 'User-Agent': UA } });
   if (!r.ok) return '';
   let buf = Buffer.from(await r.arrayBuffer());
