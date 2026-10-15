@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Preis-Tool – Homerun Records</title>
+<style>
+  :root { --ink:#18181b; --ink2:#52525b; --ink3:#8a8a93; --line:#e4e4e7; --bg2:#f6f5f2; --acc:#d93a2b; --ok:#1f8a4c; --okbg:#e6f4ec; --warn:#b7791f; --warnbg:#fdf3e1; --err:#b52d20; --errbg:#fdecea; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 15px/1.5 system-ui, -apple-system, 'Segoe UI', sans-serif; color: var(--ink); background: var(--bg2); }
+  header { background: #111; color: #fff; padding: 14px 24px; display: flex; align-items: center; gap: 12px; }
+  header b { color: var(--acc); }
+  header .tag { background: var(--acc); font-size: .7rem; font-weight: 700; padding: 2px 8px; border-radius: 4px; letter-spacing: .06em; text-transform: uppercase; }
+  main { max-width: 1100px; margin: 0 auto; padding: 24px 16px 64px; display: grid; gap: 18px; }
+  .card { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 20px; }
+  h2 { font-size: 1.05rem; margin: 0 0 12px; }
+  .muted { color: var(--ink2); } .small { font-size: .85rem; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px 16px; }
+  label.f { display: grid; gap: 4px; font-size: .85rem; font-weight: 600; color: var(--ink2); }
+  input[type=text], input[type=password], input[type=number], input[type=url] { border: 1px solid #d4d4d8; border-radius: 6px; padding: 9px 10px; font: inherit; width: 100%; }
+  .btn { border: 1px solid #d4d4d8; background: #fff; border-radius: 6px; padding: 9px 16px; font: inherit; font-weight: 600; cursor: pointer; }
+  .btn:hover { background: var(--bg2); }
+  .btn.primary { background: var(--acc); border-color: var(--acc); color: #fff; }
+  .btn.dark { background: var(--ink); border-color: var(--ink); color: #fff; }
+  .btn:disabled { opacity: .45; cursor: default; }
+  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .drop { display: block; border: 2px dashed #d4d4d8; border-radius: 10px; padding: 28px; text-align: center; cursor: pointer; background: var(--bg2); }
+  .drop:hover, .drop.over { border-color: var(--acc); background: #fdecea; }
+  .drop input { display: none; }
+  .note { padding: 10px 14px; border-radius: 6px; font-size: .9rem; }
+  .note.ok { background: var(--okbg); color: var(--ok); } .note.warn { background: var(--warnbg); color: var(--warn); } .note.err { background: var(--errbg); color: var(--err); }
+  .bar { height: 10px; background: #eceae4; border-radius: 99px; overflow: hidden; }
+  .bar div { height: 100%; width: 0; background: var(--acc); transition: width .3s; }
+  .stats { display: flex; gap: 24px; flex-wrap: wrap; margin: 12px 0; }
+  .stats b { display: block; font-size: 1.4rem; }
+  .stats span { font-size: .75rem; text-transform: uppercase; letter-spacing: .06em; color: var(--ink3); font-weight: 700; }
+  .tw { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; max-height: 560px; overflow-y: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: .85rem; }
+  th { position: sticky; top: 0; background: var(--bg2); text-align: left; font-size: .72rem; text-transform: uppercase; letter-spacing: .05em; color: var(--ink3); padding: 9px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  td { padding: 7px 10px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+  td.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  td.sale { font-weight: 800; color: var(--acc); }
+  .thumb { width: 44px; height: 44px; border-radius: 3px; object-fit: cover; background: #222; display: block; }
+  .hint { color: var(--warn); font-size: .78rem; }
+  code { background: var(--bg2); padding: 1px 5px; border-radius: 4px; }
+  ol.steps { margin: 0; padding-left: 20px; } ol.steps li { margin: 4px 0; }
+</style>
+</head>
+<body>
+<header><strong style="letter-spacing:.02em">HOMERUN <b>RECORDS</b></strong><span class="tag">Preis-Tool</span></header>
+<main>
+
+  <section class="card">
+    <h2>1. Einstellungen</h2>
+    <div class="grid">
+      <label class="f">Discogs-Token
+        <input type="password" id="token" placeholder="noch nicht eingetragen" autocomplete="off">
+      </label>
+      <label class="f">Rabatt auf den Durchschnitt (%)
+        <input type="number" id="discount" min="0" max="90" step="1">
+      </label>
+      <label class="f">Mindestpreis (€)
+        <input type="number" id="minPrice" min="0" step="0.5">
+      </label>
+      <label class="f">Adresse deiner Website (optional)
+        <input type="url" id="site" placeholder="https://homerun-records.vercel.app">
+      </label>
+    </div>
+    <div class="row" style="margin-top:12px">
+      <label class="small"><input type="checkbox" id="covers"> Cover herunterladen und speichern</label>
+      <button class="btn" id="save" style="margin-left:auto">Speichern &amp; Token prüfen</button>
+    </div>
+    <div id="set-msg" style="margin-top:10px"></div>
+    <details class="small muted" style="margin-top:10px">
+      <summary>Wie bekomme ich den Token?</summary>
+      <ol class="steps">
+        <li>Bei <strong>discogs.com</strong> anmelden → oben rechts Profilbild → <strong>Einstellungen → Entwickler</strong>.</li>
+        <li>Auf <strong>„Neuen Token generieren“</strong> klicken, den Token kopieren und hier einfügen.</li>
+        <li>Für die Preisvorschläge muss auf discogs.com einmalig <strong>Einstellungen → Verkäufer-Einstellungen</strong> ausgefüllt sein (Währung am besten EUR).</li>
+      </ol>
+      Der Token wird nur auf diesem PC gespeichert, nicht im Projektordner.
+    </details>
+  </section>
+
+  <section class="card">
+    <h2>2. CSV-Liste auswählen</h2>
+    <label class="drop" id="drop">
+      <input type="file" accept=".csv,text/csv" id="file">
+      <strong>Discogs-CSV hier ablegen</strong> oder klicken zum Auswählen
+      <div class="small muted" id="file-info" style="margin-top:6px">z. B. dein Sammlungs-Export von discogs.com</div>
+    </label>
+    <div class="row" style="margin-top:12px">
+      <button class="btn primary" id="start" disabled>Preise &amp; Cover ermitteln</button>
+      <button class="btn" id="stop" hidden>Anhalten</button>
+      <button class="btn" id="resume" hidden>Fortsetzen</button>
+      <span class="small muted" id="eta"></span>
+    </div>
+    <p class="small muted" style="margin:10px 0 0">Discogs erlaubt etwa 60 Abfragen pro Minute. Pro Platte sind 3 Abfragen nötig, also rund 20 Platten pro Minute (1.000 Platten ≈ 50 Minuten). Bereits abgefragte Platten werden 30 Tage lang zwischengespeichert und gehen sofort.</p>
+  </section>
+
+  <section class="card" id="progress" hidden>
+    <h2>3. Ergebnis</h2>
+    <div class="bar"><div id="bar"></div></div>
+    <div class="stats">
+      <div><b id="s-done">0</b><span>bearbeitet</span></div>
+      <div><b id="s-priced">0</b><span>mit Preis</span></div>
+      <div><b id="s-cover">0</b><span>mit Cover</span></div>
+    </div>
+    <div id="wait"></div>
+    <div class="row" style="margin-bottom:12px">
+      <button class="btn dark" id="download" disabled>Ergebnis-CSV herunterladen</button>
+      <button class="btn" id="open">Ordner „Ergebnisse“ öffnen</button>
+    </div>
+    <div class="tw"><table>
+      <thead><tr><th>#</th><th></th><th>Platte</th><th>Niedrig (VG)</th><th>Mittel (VG+)</th><th>Hoch (NM)</th><th>Ø</th><th>Verkaufspreis</th><th>Günstigstes Angebot</th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table></div>
+  </section>
+
+  <section class="card" id="shop" hidden>
+    <h2>4. In den Shop übertragen</h2>
+    <p class="small muted" style="margin-top:0">Lädt die Cover in den Bildspeicher deiner Website und importiert alle Platten mit Verkaufspreis direkt in den Shop. Bereits vorhandene Platten werden aktualisiert, nicht doppelt angelegt. Alternativ kannst du die Ergebnis-CSV wie gewohnt im Admin-Bereich hochladen (dort denselben Rabatt verwenden).</p>
+    <div class="row">
+      <input type="password" id="pw" placeholder="Admin-Passwort der Website" style="max-width:300px">
+      <button class="btn primary" id="push">In den Shop übertragen</button>
+    </div>
+    <div id="shop-msg" style="margin-top:12px"></div>
+  </section>
+
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const eur = (n) => (n == null ? '–' : Number(n).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' }));
+async function post(p, body) {
+  const r = await fetch(p, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || 'Fehler');
+  return j;
+}
+let file = null;
+let first = true;
+
+async function refresh() {
+  const s = await (await fetch('/api/state')).json();
+  if (first) {
+    $('discount').value = s.settings.discount;
+    $('minPrice').value = s.settings.minPrice;
+    $('site').value = s.settings.site || '';
+    $('covers').checked = s.settings.covers;
+    first = false;
+  }
+  $('token').placeholder = s.settings.hasToken ? '•••••••• gespeichert (zum Ändern neu einfügen)' : 'noch nicht eingetragen';
+  $('start').disabled = !file || s.job?.state === 'running';
+  const j = s.job;
+  $('stop').hidden = j?.state !== 'running';
+  $('resume').hidden = j?.state !== 'stopped';
+  if (j) {
+    $('progress').hidden = false;
+    $('shop').hidden = !(j.state === 'done' || j.state === 'stopped');
+    $('bar').style.width = `${(j.i / j.total) * 100}%`;
+    $('s-done').textContent = `${j.i} / ${j.total}`;
+    $('s-priced').textContent = j.priced;
+    $('s-cover').textContent = j.withCover;
+    $('download').disabled = j.i === 0;
+    if (j.state === 'running' && j.i > 0) {
+      const per = (Date.now() - j.started) / j.i;
+      const left = Math.round(((j.total - j.i) * per) / 60000);
+      $('eta').textContent = `noch ca. ${left < 1 ? 'weniger als 1' : left} Min.`;
+    } else $('eta').textContent = j.state === 'done' ? 'Fertig!' : j.state === 'stopped' ? 'Angehalten' : '';
+    $('wait').innerHTML = s.waitNote ? `<div class="note warn" style="margin-bottom:12px">${esc(s.waitNote)}</div>` : '';
+    $('rows').innerHTML = j.results.slice().reverse().map((r) => `<tr>
+      <td class="muted">${r.n}</td>
+      <td>${r.coverFile ? `<img class="thumb" src="/cover/${encodeURIComponent(r.coverFile)}" alt="">` : '<div class="thumb"></div>'}</td>
+      <td><strong>${esc(r.artist)}</strong> – ${esc(r.title)}${r.notes.length ? `<div class="hint">${esc(r.notes.join(' · '))}</div>` : ''}</td>
+      <td class="num">${eur(r.low)}</td><td class="num">${eur(r.mid)}</td><td class="num">${eur(r.high)}</td>
+      <td class="num">${eur(r.avg)}</td><td class="num sale">${eur(r.sale)}</td>
+      <td class="num">${eur(r.lowest)}${r.forSale ? ` <span class="muted small">(${r.forSale}×)</span>` : ''}</td>
+    </tr>`).join('');
+  }
+  const sj = s.shopJob;
+  if (sj) {
+    $('push').disabled = sj.state === 'running';
+    $('shop-msg').innerHTML = sj.state === 'running'
+      ? `<div class="note warn">${esc(sj.step)} … ${sj.done} / ${sj.total}</div>`
+      : sj.state === 'error' ? `<div class="note err">${esc(sj.error)}</div>`
+      : `<div class="note ok">Fertig: ${sj.result.inserted} neu im Shop, ${sj.result.updated} aktualisiert${sj.result.skipped ? `, ${sj.result.skipped} übersprungen` : ''}.</div>${sj.result.coverError ? `<div class="note warn" style="margin-top:8px">Cover: ${esc(sj.result.coverError)}</div>` : ''}`;
+  }
+}
+
+$('save').onclick = async () => {
+  $('set-msg').innerHTML = '';
+  try {
+    const r = await post('/api/settings', { token: $('token').value, discount: $('discount').value, minPrice: $('minPrice').value, site: $('site').value, covers: $('covers').checked, test: true });
+    $('token').value = '';
+    $('set-msg').innerHTML = `<div class="note ok">Gespeichert${r.user ? ` – Token gültig für Discogs-Konto „${esc(r.user)}“` : ''}.</div>`;
+  } catch (e) { $('set-msg').innerHTML = `<div class="note err">${esc(e.message)}</div>`; }
+  refresh();
+};
+['discount', 'minPrice', 'site', 'covers'].forEach((id) => $(id).addEventListener('change', () =>
+  post('/api/settings', { discount: $('discount').value, minPrice: $('minPrice').value, site: $('site').value, covers: $('covers').checked })));
+
+function pick(f) {
+  if (!f) return;
+  file = f;
+  $('file-info').innerHTML = `<strong>${esc(f.name)}</strong> ausgewählt`;
+  refresh();
+}
+$('file').onchange = (e) => pick(e.target.files[0]);
+const drop = $('drop');
+['dragenter', 'dragover'].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add('over'); }));
+['dragleave', 'drop'].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove('over'); }));
+drop.addEventListener('drop', (e) => pick(e.dataTransfer.files[0]));
+
+$('start').onclick = async () => {
+  const buf = await file.arrayBuffer();
+  let text = new TextDecoder('utf-8').decode(buf);
+  if (text.includes('�')) text = new TextDecoder('windows-1252').decode(buf);
+  try { await post('/api/start', { name: file.name, csv: text }); } catch (e) { alert(e.message); }
+  refresh();
+};
+$('stop').onclick = () => post('/api/stop').then(refresh);
+$('resume').onclick = () => post('/api/resume').then(refresh);
+$('download').onclick = () => { location.href = '/api/download'; };
+$('open').onclick = () => post('/api/open');
+$('push').onclick = async () => {
+  if (!$('site').value) { alert('Bitte oben die Adresse deiner Website eintragen.'); return; }
+  await post('/api/settings', { site: $('site').value });
+  try { await post('/api/shop', { password: $('pw').value }); } catch (e) { alert(e.message); }
+  $('pw').value = '';
+  refresh();
+};
+
+refresh();
+setInterval(refresh, 2000);
+</script>
+</body>
+</html>

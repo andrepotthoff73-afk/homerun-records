@@ -5,7 +5,8 @@
   "type": "module",
   "description": "Homerun Records – Vinyl-Shop mit Admin-Bereich, CSV-Import und PayPal",
   "dependencies": {
-    "@neondatabase/serverless": "^1.0.0"
+    "@neondatabase/serverless": "^1.0.0",
+    "@vercel/blob": "^1.0.0"
   },
   "engines": {
     "node": ">=18"

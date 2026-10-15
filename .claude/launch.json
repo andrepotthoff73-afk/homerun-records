@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "homerun-vorschau",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["vorschau/server.mjs"],
+      "port": 4321
+    }
+  ]
+}

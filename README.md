@@ -99,3 +99,28 @@ beispiel-import.csv        Beispieldatei zum Testen des Imports
 
 ## Lokale Vorschau
 `Vorschau-starten.bat` doppelklicken → Browser öffnet http://localhost:4321 (Admin-Passwort: `vorschau12345`). Benötigt Node.js. Daten gehen beim Schließen des Fensters verloren.
+
+---
+
+## Preis-Tool (Preise & Cover automatisch ermitteln)
+
+`Preis-Tool-starten.bat` doppelklicken → im Browser öffnet sich http://localhost:4410.
+
+1. **Discogs-Token** eintragen (discogs.com → Einstellungen → Entwickler → „Neuen Token generieren“) und einmalig auf discogs.com die **Verkäufer-Einstellungen** ausfüllen (Währung EUR). Ohne diese gibt Discogs keine Preisvorschläge heraus.
+2. CSV-Export deiner Discogs-Sammlung hineinziehen → **„Preise & Cover ermitteln“**.
+3. Ergebnis: Ordner `Ergebnisse` mit `<liste>-mit-preisen.csv` und allen Covern in `Ergebnisse/cover`.
+4. **„In den Shop übertragen“** (Website-Adresse + Admin-Passwort): lädt die Cover in den Bildspeicher der Website und importiert alle Platten mit Preis, Genre, Land und Trackliste.
+
+**So wird der Preis berechnet** (offizielle Discogs-API, Preisvorschläge basieren auf den Verkäufen bei Discogs):
+- Niedrig = Preisvorschlag für Zustand **VG**
+- Mittel = Preisvorschlag für Zustand **VG+**
+- Hoch = Preisvorschlag für Zustand **NM**
+- Durchschnitt = Mittelwert der drei → **Verkaufspreis = Durchschnitt minus Rabatt (10 %)**, mindestens der eingestellte Mindestpreis
+- Fehlen Preisvorschläge, wird ersatzweise das günstigste aktuelle Angebot verwendet (Hinweis in der Liste). Gibt es gar keinen Preis, landet die Platte im Shop als Entwurf.
+- Fremdwährungen werden mit dem Tageskurs der EZB in Euro umgerechnet.
+
+**Tempo:** ca. 20 Platten pro Minute (Discogs-Limit). 1.000 Platten ≈ 50 Minuten. Anhalten und Fortsetzen jederzeit möglich; einmal abgefragte Platten sind 30 Tage zwischengespeichert.
+
+**Einmalig in Vercel für die Cover:** Projekt → **Storage → Create Database → Blob** → mit dem Projekt verbinden → Redeploy. (Kostenloser Tarif: begrenzter Speicher – die Cover werden auf 500 px verkleinert, ca. 30–50 KB pro Bild.)
+
+Token und Zwischenspeicher liegen in `%APPDATA%\HomerunPreisTool`, nicht im Projektordner.

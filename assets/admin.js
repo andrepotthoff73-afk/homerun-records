@@ -72,6 +72,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         s.coverToken
           ? item('ok', `Token für Cover &amp; Tracklisten gesetzt${s.missingCovers ? ` – bei ${num(s.missingCovers)} Platten noch nicht geladen (Werkzeuge)` : ''}`)
           : item('warn', 'Optional: Token für Cover &amp; Tracklisten setzen (siehe README), damit Cover und Track-Suche funktionieren'),
+        s.blob
+          ? item('ok', 'Bildspeicher verbunden – Cover aus dem Preis-Tool werden gespeichert')
+          : item('warn', 'Optional: Blob-Bildspeicher in Vercel verbinden, damit das Preis-Tool Cover hochladen kann'),
         s.reserved ? item('warn', `${num(s.reserved)} Platte(n) reserviert (laufende Zahlung)`) : '',
       ].join('');
     } catch (e) {

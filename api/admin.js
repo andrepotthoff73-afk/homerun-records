@@ -26,6 +26,7 @@ export default async function handler(req, res) {
     if (post && action === 'update') return await update(req, res);
     if (post && action === 'reprice') return await reprice(req, res);
     if (post && action === 'cover') return await coverStep(res);
+    if (post && action === 'upload-cover') return await uploadCover(req, res);
     send(res, 404, { error: 'Unbekannte Aktion' });
   } catch (e) {
     console.error(e);
@@ -65,6 +66,7 @@ async function stats(res) {
     revenue: ord[0].revenue,
     missingCovers: covers[0].n,
     coverToken: Boolean(process.env.DISCOGS_TOKEN),
+    blob: Boolean(process.env.BLOB_READ_WRITE_TOKEN),
     paypal: Boolean(process.env.PAYPAL_CLIENT_ID && process.env.PAYPAL_CLIENT_SECRET),
     paypalMode: process.env.PAYPAL_MODE === 'live' ? 'live' : 'sandbox',
   });
@@ -163,6 +165,9 @@ async function importRows(req, res) {
        sleeve_condition = coalesce(EXCLUDED.sleeve_condition, records.sleeve_condition),
        description = coalesce(EXCLUDED.description, records.description),
        notes = coalesce(EXCLUDED.notes, records.notes),
+       genre = coalesce(EXCLUDED.genre, records.genre),
+       cover_url = coalesce(EXCLUDED.cover_url, records.cover_url),
+       thumb_url = coalesce(EXCLUDED.thumb_url, records.thumb_url),
        tracks = coalesce(EXCLUDED.tracks, records.tracks),
        country = coalesce(EXCLUDED.country, records.country),
        updated_at = now()
@@ -221,4 +226,19 @@ async function coverStep(res) {
   if (r.status === 'error') await sql.query(`UPDATE records SET cover_url = coalesce(cover_url, ''), thumb_url = coalesce(thumb_url, ''), tracks = coalesce(tracks, '') WHERE id = $1`, [next[0].id]);
   const left = await sql.query(`SELECT count(*)::int AS n FROM records WHERE (cover_url IS NULL OR tracks IS NULL) AND release_id IS NOT NULL`);
   send(res, 200, { status: r.status, remaining: left[0].n });
+}
+
+// Cover-Bild vom Preis-Tool entgegennehmen und im Vercel-Blob-Speicher ablegen
+async function uploadCover(req, res) {
+  if (!process.env.BLOB_READ_WRITE_TOKEN) {
+    return send(res, 400, { error: 'Bildspeicher nicht verbunden: In Vercel unter „Storage“ einen Blob-Speicher anlegen, mit dem Projekt verbinden und neu deployen.' });
+  }
+  const { put } = await import('@vercel/blob');
+  const id = String(req.body?.release_id ?? '').replace(/\D/g, '') || 'ohne-id';
+  const type = /^image\/(jpeg|png|webp)$/.test(req.body?.type) ? req.body.type : 'image/jpeg';
+  const buf = Buffer.from(String(req.body?.data || ''), 'base64');
+  if (!buf.length || buf.length > 3_000_000) return send(res, 400, { error: 'Ungültiges oder zu großes Bild.' });
+  const ext = type === 'image/jpeg' ? 'jpg' : type.split('/')[1];
+  const blob = await put(`cover/${id}.${ext}`, buf, { access: 'public', contentType: type, addRandomSuffix: true });
+  send(res, 200, { url: blob.url });
 }
