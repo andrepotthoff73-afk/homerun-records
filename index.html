@@ -46,11 +46,25 @@
             <a class="qs-adv" href="/suche" id="adv-link">Erweiterte Suche</a>
           </div>
         </form>
+        <nav class="cat-strip hidden" id="cat-strip" aria-label="Stöbern nach Kategorie"></nav>
       </div>
     </section>
 
     <div class="wrap shop">
       <aside class="filters" id="filters" aria-label="Filter">
+        <div class="filter-group hidden" id="fg-genre">
+          <h3>Genre</h3>
+          <div class="chips" id="genre-chips"></div>
+        </div>
+        <div class="filter-group hidden" id="fg-style">
+          <h3>Stil</h3>
+          <div class="chips" id="style-chips"></div>
+          <button class="more-link hidden" id="style-more">Alle Stile anzeigen</button>
+        </div>
+        <div class="filter-group hidden" id="fg-decade">
+          <h3>Jahrzehnt</h3>
+          <div class="chips" id="decade-chips"></div>
+        </div>
         <div class="filter-group">
           <h3>Format</h3>
           <div class="chips" data-filter="format">

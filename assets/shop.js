@@ -83,6 +83,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   function syncControls() {
+    if (typeof renderCategories === 'function' && facets.tags) renderCategories();
     document.querySelectorAll('[data-filter]').forEach((g) => {
       g.querySelectorAll('.chip').forEach((c) => c.classList.toggle('active', c.dataset.v === state[g.dataset.filter]));
     });
@@ -97,9 +98,15 @@ document.addEventListener('DOMContentLoaded', () => {
     $('adv-link').href = `/suche${params().toString() ? `?${params()}` : ''}`;
 
     const chips = [];
+    // Ein ganzes Jahrzehnt als ein Hinweis („Jahrzehnt: 70er“) statt „Jahr ab“ + „Jahr bis“
+    const dec = Number(state.year_from);
+    const wholeDecade = dec % 10 === 0 && state.year_to === String(dec + 9);
+    if (wholeDecade) chips.push(['year_from,year_to', `Jahrzehnt: ${decadeLabel(dec)}`]);
     for (const k of KEYS) {
       if (!state[k] || ['min', 'max'].includes(k)) continue;
-      chips.push([k, `${FILTERS[k]}: ${state[k]}`]);
+      if (wholeDecade && (k === 'year_from' || k === 'year_to')) continue;
+      const value = k === 'genre' && GENRES[state[k]] ? GENRES[state[k]] : state[k];
+      chips.push([k, `${k === 'genre' ? (GENRES[state[k]] ? 'Genre' : 'Stil') : FILTERS[k]}: ${value}`]);
     }
     if (state.min || state.max) chips.push(['min,max', `Preis: ${state.min || '0'} – ${state.max || '∞'} €`]);
     $('active').innerHTML = chips.map(([k, l]) => `<button class="chip active" data-clear="${k}">${esc(l)} ✕</button>`).join('');
@@ -211,6 +218,71 @@ document.addEventListener('DOMContentLoaded', () => {
     html += `<button data-page="${p + 1}" ${p === pages ? 'disabled' : ''} aria-label="Nächste Seite">›</button>`;
     $('pager').innerHTML = html;
   }
+
+  // ---------- Kategorien: Genre, Stil, Jahrzehnt ----------
+  // Die groben Genres des Katalogs; alles andere sind Stile (House, Techno, Schlager …)
+  const GENRES = {
+    Rock: 'Rock', Electronic: 'Electronic', Pop: 'Pop', Jazz: 'Jazz', 'Funk / Soul': 'Funk & Soul', 'Hip Hop': 'Hip-Hop',
+    Reggae: 'Reggae', Blues: 'Blues', Latin: 'Latin', Classical: 'Klassik', 'Folk World & Country': 'Folk & Country',
+    'Stage & Screen': 'Film & Musical', "Children's": 'Kinder', 'Brass & Military': 'Blasmusik', 'Non-Music': 'Sonstiges',
+  };
+  const STYLE_LIMIT = 14;
+  let facets = { tags: [], decades: [] };
+  let showAllStyles = false;
+  const decadeLabel = (d) => (d >= 2000 ? `${d}er` : `${String(d).slice(2)}er`);
+  const isDecade = (d) => state.year_from === String(d) && state.year_to === String(d + 9);
+
+  function chip(attrs, label, n, active) {
+    return `<button class="chip ${active ? 'active' : ''}" ${attrs}>${esc(label)}${n != null ? `<span class="n">${num(n)}</span>` : ''}</button>`;
+  }
+
+  function renderCategories() {
+    const genres = facets.tags.filter((t) => GENRES[t.name]);
+    const styles = facets.tags.filter((t) => !GENRES[t.name]);
+    const decades = facets.decades.filter((d) => d.decade >= 1900);
+
+    $('genre-chips').innerHTML = genres.map((t) => chip(`data-genre="${esc(t.name)}"`, GENRES[t.name], t.n, state.genre === t.name)).join('');
+    $('fg-genre').classList.toggle('hidden', !genres.length);
+
+    const shown = showAllStyles ? styles : styles.slice(0, STYLE_LIMIT);
+    $('style-chips').innerHTML = shown.map((t) => chip(`data-genre="${esc(t.name)}"`, t.name, t.n, state.genre === t.name)).join('');
+    $('fg-style').classList.toggle('hidden', !styles.length);
+    $('style-more').classList.toggle('hidden', styles.length <= STYLE_LIMIT);
+    $('style-more').textContent = showAllStyles ? 'Weniger anzeigen' : `Alle ${styles.length} Stile anzeigen`;
+
+    $('decade-chips').innerHTML = decades.map((d) => chip(`data-decade="${d.decade}"`, decadeLabel(d.decade), d.n, isDecade(d.decade))).join('');
+    $('fg-decade').classList.toggle('hidden', !decades.length);
+
+    // Schnellzugriff oben: die größten Genres und alle Jahrzehnte
+    const top = genres.slice(0, 8);
+    const strip = $('cat-strip');
+    strip.classList.toggle('hidden', !top.length && !decades.length);
+    strip.innerHTML = [
+      top.length ? `<span class="label">Genres</span>${top.map((t) => chip(`data-genre="${esc(t.name)}"`, GENRES[t.name], null, state.genre === t.name)).join('')}` : '',
+      top.length && decades.length ? '<span class="sep"></span>' : '',
+      decades.length ? `<span class="label">Jahrzehnte</span>${decades.map((d) => chip(`data-decade="${d.decade}"`, decadeLabel(d.decade), null, isDecade(d.decade))).join('')}` : '',
+    ].join('');
+  }
+
+  // Klick auf eine Kategorie: setzen bzw. erneut klicken zum Aufheben
+  document.addEventListener('click', (e) => {
+    const g = e.target.closest('[data-genre]');
+    const d = e.target.closest('[data-decade]');
+    if (!g && !d) return;
+    if (g) state.genre = state.genre === g.dataset.genre ? '' : g.dataset.genre;
+    if (d) {
+      const dec = Number(d.dataset.decade);
+      const active = isDecade(dec);
+      state.year_from = active ? '' : String(dec);
+      state.year_to = active ? '' : String(dec + 9);
+    }
+    state.page = 1;
+    load();
+    if (e.target.closest('#cat-strip')) results.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+  $('style-more').addEventListener('click', () => { showAllStyles = !showAllStyles; renderCategories(); });
+
+  api('/api/shop?action=facets').then((f) => { facets = f; renderCategories(); }).catch(() => {});
 
   load();
 });

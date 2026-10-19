@@ -39,6 +39,7 @@ export default async function handler(req, res) {
     if (action === 'list') return await list(req, res);
     if (action === 'get') return await getOne(req, res);
     if (action === 'many') return await many(req, res);
+    if (action === 'facets') return await facets(res);
     if (action === 'cover') return await cover(req, res);
     send(res, 404, { error: 'Unbekannte Aktion' });
   } catch (e) {
@@ -95,6 +96,22 @@ async function getOne(req, res) {
   const rows = await db().query(`SELECT ${PUBLIC_COLS} FROM records WHERE id = $1 AND status <> 'draft'`, [id || 0]);
   if (!rows.length) return send(res, 404, { error: 'Platte nicht gefunden' });
   send(res, 200, rows[0], { 'Cache-Control': 's-maxage=20' });
+}
+
+// Kategorien für die Knöpfe im Shop: Genres/Stile und Jahrzehnte mit Anzahl der verfügbaren Platten
+async function facets(res) {
+  const sql = db();
+  const [tags, decades] = await Promise.all([
+    // „Folk, World, & Country“ enthält selbst Kommas – vor dem Aufteilen zusammenfassen
+    sql.query(`SELECT trim(t) AS name, count(*)::int AS n
+               FROM records, regexp_split_to_table(replace(coalesce(genre, ''), 'Folk, World, & Country', 'Folk World & Country'), ',') AS t
+               WHERE status = 'available' AND trim(t) <> ''
+               GROUP BY 1 ORDER BY n DESC, name LIMIT 80`),
+    sql.query(`SELECT (${YEAR} / 10) * 10 AS decade, count(*)::int AS n
+               FROM records WHERE status = 'available' AND ${YEAR} IS NOT NULL
+               GROUP BY 1 ORDER BY 1`),
+  ]);
+  send(res, 200, { tags, decades }, { 'Cache-Control': 's-maxage=60, stale-while-revalidate=300' });
 }
 
 async function many(req, res) {

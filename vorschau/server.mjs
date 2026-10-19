@@ -39,6 +39,14 @@ const demo = [
   ['David Bowie', 'Heroes', 'RCA Victor', 'PL 12522', 'LP, Album', '1977', 29, 'Near Mint (NM or M-)', 'Very Good Plus (VG+)'],
   ['Kraftwerk', 'Das Model', 'EMI', '1C 006-46 155', '7", Single', '1981', 6.5, 'Very Good Plus (VG+)', 'Very Good (VG)'],
 ];
+const DEMO_GENRES = [
+  'Rock, Pop Rock',
+  'Rock, Prog Rock, Psychedelic Rock',
+  'Jazz, Modal, Cool Jazz',
+  'Rock, Pop Rock, Soft Rock',
+  'Electronic, Rock, Art Rock',
+  'Electronic, Synth-pop, Electro',
+];
 const demoMeta = [
   ['UK', ['A1\tCome Together', 'A2\tSomething', "A3\tMaxwell's Silver Hammer", 'B1\tHere Comes The Sun', 'B2\tBecause']],
   ['UK', ['A1\tSpeak To Me', 'A2\tBreathe', 'A3\tOn The Run', 'A4\tTime', 'B1\tMoney', 'B2\tUs And Them', 'B5\tEclipse']],
@@ -49,9 +57,9 @@ const demoMeta = [
 ];
 for (const [i, d] of demo.entries()) {
   await db().query(
-    `INSERT INTO records (import_key, artist, title, label, catno, format, released, avg_price, price, media_condition, sleeve_condition, country, tracks, batch)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'Vorschau') ON CONFLICT DO NOTHING`,
-    [`demo${i}`, ...d.slice(0, 6), d[6], Math.round(d[6] * 90) / 100, d[7], d[8], demoMeta[i][0], demoMeta[i][1].join('\n')],
+    `INSERT INTO records (import_key, artist, title, label, catno, format, released, avg_price, price, media_condition, sleeve_condition, country, tracks, genre, batch)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,'Vorschau') ON CONFLICT DO NOTHING`,
+    [`demo${i}`, ...d.slice(0, 6), d[6], Math.round(d[6] * 90) / 100, d[7], d[8], demoMeta[i][0], demoMeta[i][1].join('\n'), DEMO_GENRES[i]],
   );
 }
 

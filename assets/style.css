@@ -365,3 +365,15 @@ a.kpi-card:hover { border-color: var(--ink-3); }
 .cookie-actions .btn:not(.btn-primary):hover { background: #27272a; }
 @keyframes cookie-in { from { transform: translateY(20px); opacity: 0; } to { transform: none; opacity: 1; } }
 @media print { .cookie-banner { display: none !important; } }
+
+/* ---------- Kategorien (Genre, Stil, Jahrzehnt) ---------- */
+.cat-strip { display: flex; gap: 8px; align-items: center; margin-top: 16px; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
+.cat-strip::-webkit-scrollbar { display: none; }
+.cat-strip .label { font-size: .75rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-3); white-space: nowrap; margin-right: 2px; }
+.cat-strip .sep { width: 1px; align-self: stretch; background: var(--line-2); margin: 2px 6px; flex-shrink: 0; }
+.cat-strip .chip { white-space: nowrap; }
+.cat-strip .chip:not(.active) { background: #fff; }
+.chip .n { color: var(--ink-3); font-weight: 400; margin-left: 3px; font-size: .78em; }
+.chip.active .n { color: #c9c9cf; }
+.more-link { border: 0; background: none; padding: 6px 0 0; color: var(--link); font-size: .84rem; cursor: pointer; }
+.more-link:hover { text-decoration: underline; }
