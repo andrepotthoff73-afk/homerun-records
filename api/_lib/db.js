@@ -48,6 +48,8 @@ const SCHEMA = [
   `ALTER TABLE records ADD COLUMN IF NOT EXISTS price_high numeric(10,2)`,
   `ALTER TABLE records ADD COLUMN IF NOT EXISTS lowest_offer numeric(10,2)`,
   `CREATE INDEX IF NOT EXISTS records_enrich_idx ON records (enrich_status, id)`,
+  // Physischer Lagerort (Kiste), nur im Admin-Bereich sichtbar
+  `ALTER TABLE records ADD COLUMN IF NOT EXISTS location text`,
   // Kundenkonten (Mitgliederbereich) – Lieferadresse kommt immer aus PayPal, wird hier nicht gespeichert
   `CREATE TABLE IF NOT EXISTS customers (
     id            serial PRIMARY KEY,

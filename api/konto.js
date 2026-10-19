@@ -88,7 +88,7 @@ async function wishlist(id, req, res) {
     else await sql.query('INSERT INTO wishlist (customer_id, record_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [id, recordId]);
   }
   const items = await sql.query(
-    `SELECT r.id, r.release_id, r.artist, r.title, r.format, r.price, r.avg_price, r.status, r.cover_url, r.thumb_url
+    `SELECT r.id, r.release_id, r.artist, r.title, r.format, r.price, r.status, r.cover_url, r.thumb_url
      FROM wishlist w JOIN records r ON r.id = w.record_id
      WHERE w.customer_id = $1 AND r.status <> 'draft' ORDER BY w.created_at DESC`,
     [id],

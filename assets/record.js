@@ -44,7 +44,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     }).join('')}</ol>`;
   }
 
-  const d = discount(rec);
   const sold = rec.status !== 'available';
   const perks = ['Bezahlung sicher über PayPal', 'Versand gut verpackt in stabilem LP-Karton', 'Zustand ehrlich nach Goldmine-Standard'];
 
@@ -61,7 +60,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         ${sold
           ? `<span class="sold-tag">${rec.status === 'reserved' ? 'Gerade reserviert' : 'Verkauft'}</span><p class="muted small" style="margin:0">Diese Platte ist leider schon weg. Schau dir ähnliche Platten unten an.</p>`
           : `<div class="price">${eur(rec.price)}</div>
-             ${rec.avg_price ? `<div class="was">Marktpreis <s>${eur(rec.avg_price)}</s>${d > 0 ? ` <span class="save">Du sparst ${eur(rec.avg_price - rec.price)}</span>` : ''}</div>` : ''}
              ${cartButton(rec, 'btn-block btn-lg')}
              <ul>${perks.map((p) => `<li>${ICON.check}<span>${p}</span></li>`).join('')}</ul>
              <p class="small muted" style="margin:0">Einzelstück – nur 1× vorhanden. zzgl. <a href="/rechtliches#versand">Versand</a>. Versand an deine PayPal-Adresse.</p>`}

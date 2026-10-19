@@ -259,6 +259,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     saveSettings();
     const rows = buildRows().filter((r) => r.artist && r.title);
     if (!rows.length) { toast('Keine Platten in der Datei gefunden.'); return; }
+    // Lagerort (Kiste) für alle Platten dieser Liste
+    const location = $('location').value.trim();
+    if (!location && !confirm('Für diese Liste ist kein Lagerort (Kiste) angegeben.\n\nTrotzdem ohne Lagerort erfassen?')) {
+      $('location').focus();
+      toast('Bitte Lagerort eintragen und die Datei erneut ablegen.');
+      return;
+    }
     importing = true;
     $('run-box').classList.remove('hidden');
     setStep('step-import', 'active');
@@ -278,7 +285,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       let ok = false;
       for (let attempt = 1; attempt <= 3 && !ok; attempt++) {
         try {
-          const r = await call('/api/admin?action=import', { body: { rows: chunk, discount: s.discount, minPrice: s.minPrice, batch, auto: true } });
+          const r = await call('/api/admin?action=import', { body: { rows: chunk, discount: s.discount, minPrice: s.minPrice, batch, location, auto: true } });
           tot.inserted += r.inserted; tot.updated += r.updated; tot.skipped += r.skipped;
           ok = true;
         } catch (e) {
@@ -294,8 +301,24 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     importing = false;
     setStep('step-import', 'done');
-    $('import-text').textContent = `${num(tot.inserted)} neu, ${num(tot.updated)} aktualisiert${tot.skipped ? `, ${num(tot.skipped)} übersprungen` : ''}`;
+    $('import-text').textContent = `${num(tot.inserted)} neu, ${num(tot.updated)} aktualisiert${tot.skipped ? `, ${num(tot.skipped)} übersprungen` : ''} · Lagerort: ${location || 'keiner'}`;
+    // Feld leeren, damit die nächste Liste nicht versehentlich in derselben Kiste landet
+    $('location').value = '';
+    loadLocations();
     startEnrich();
+  }
+
+  // ---------- Lagerorte (Kisten) ----------
+  async function loadLocations() {
+    try {
+      const { items } = await call('/api/admin?action=locations');
+      $('location-list').innerHTML = items.map((l) => `<option value="${esc(l.name)}">`).join('');
+      const sel = $('rec-location');
+      const current = sel.value;
+      sel.innerHTML = `<option value="">Alle Lagerorte</option><option value="__none__">Ohne Lagerort</option>${items.map((l) =>
+        `<option value="${esc(l.name)}">${esc(l.name)} (${num(l.n)})</option>`).join('')}`;
+      sel.value = current;
+    } catch { /* optional */ }
   }
 
   // Schritt 2: Warteschlange abarbeiten – Preise, Verkaufspreis, Cover, Trackliste, Genre, Land
@@ -337,6 +360,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Beim Öffnen der Seite eine unterbrochene Erfassung automatisch fortsetzen
   loaders.import = async () => {
+    loadLocations();
     const s = await enrichStats().catch(() => null);
     if (s?.enrichPending && !en.running && !importing && !en.paused) {
       setStep('step-import', 'done');
@@ -445,13 +469,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   const rec = { page: 1, items: [], selected: new Set(), total: 0 };
   const STATUS = { available: 'Verfügbar', draft: 'Entwurf', reserved: 'Reserviert', sold: 'Verkauft' };
 
-  loaders.records = () => loadRecords();
+  loaders.records = () => { loadLocations(); loadRecords(); };
   $('rec-filter').addEventListener('submit', (e) => { e.preventDefault(); rec.page = 1; loadRecords(); });
   $('rec-filter').addEventListener('change', (e) => { if (e.target.tagName === 'SELECT') { rec.page = 1; loadRecords(); } });
 
   async function loadRecords() {
     const f = $('rec-filter');
-    const qs = new URLSearchParams({ action: 'records', q: f.q.value, status: f.status.value, sort: f.sort.value, page: rec.page, per: 50 });
+    const qs = new URLSearchParams({ action: 'records', q: f.q.value, status: f.status.value, location: f.location.value, sort: f.sort.value, page: rec.page, per: 50 });
     $('rec-table').innerHTML = '<tbody><tr><td class="muted">Lade …</td></tr></tbody>';
     try {
       const data = await call(`/api/admin?${qs}`);
@@ -483,6 +507,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           <td class="hide-m"><div class="thumb"><img src="${esc(cover(r))}" alt="" loading="lazy" onerror="this.onerror=null;this.src='/assets/vinyl.svg'"></div></td>
           <td><strong>${esc(r.artist)}</strong> – ${esc(r.title)}
             <div class="small muted">#${r.id} · ${[r.label, r.catno, r.format].filter(Boolean).map(esc).join(' · ')}</div>
+            <div style="margin-top:3px">${r.location ? `<span class="loc">Lagerort: ${esc(r.location)}</span>` : '<span class="loc none">kein Lagerort</span>'}</div>
             ${r.notes ? `<div class="small" style="color:var(--warn)">Notiz: ${esc(r.notes)}</div>` : ''}</td>
           <td class="hide-m small">${esc(r.media_condition || '')}${r.sleeve_condition ? `<br><span class="muted">${esc(r.sleeve_condition)}</span>` : ''}</td>
           <td class="hide-m">${r.avg_price ? eur(r.avg_price) : '–'}</td>
@@ -538,13 +563,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!b) return;
     const ids = [...rec.selected];
     if (b.dataset.bulk === 'delete' && !confirm(`${ids.length} Platte(n) endgültig löschen?`)) return;
+    if (b.dataset.bulk === 'location') {
+      const loc = prompt(`Neuer Lagerort (Kiste) für ${ids.length} Platte(n):
+(leer lassen = Lagerort entfernen)`, '');
+      if (loc === null) return;
+      await mutate('location', ids, { location: loc.trim() });
+      loadLocations();
+      return;
+    }
     await mutate(b.dataset.bulk, ids);
   });
 
-  async function mutate(op, ids) {
+  async function mutate(op, ids, extra = {}) {
     try {
-      const r = await call('/api/admin?action=update', { body: { op, ids } });
-      const labels = { sold: 'als verkauft markiert', available: 'wieder verfügbar', draft: 'versteckt', delete: 'gelöscht', enrich: 'werden neu ermittelt' };
+      const r = await call('/api/admin?action=update', { body: { op, ids, ...extra } });
+      const labels = { sold: 'als verkauft markiert', available: 'wieder verfügbar', draft: 'versteckt', delete: 'gelöscht', enrich: 'werden neu ermittelt', location: 'mit neuem Lagerort gespeichert' };
       toast(`${r.changed} Platte(n) ${labels[op] || 'geändert'}${op === 'available' && r.changed < ids.length ? ' (ohne Preis bleiben versteckt)' : ''}`);
       loadRecords();
       if (op === 'enrich' && r.changed) startEnrich();
@@ -572,7 +605,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const t = $('orders');
     t.innerHTML = '<tbody><tr><td class="muted">Lade …</td></tr></tbody>';
     try {
-      const { items } = await call('/api/admin?action=orders');
+      const { items, locations = {} } = await call('/api/admin?action=orders');
       if (!items.length) { t.innerHTML = '<tbody><tr><td class="muted" style="padding:24px">Noch keine Bestellungen.</td></tr></tbody>'; return; }
       const addr = (a) => (a ? [a.address_line_1, a.address_line_2, `${a.postal_code || ''} ${a.admin_area_2 || ''}`.trim(), a.country_code].filter(Boolean).map(esc).join('<br>') : '');
       const OS = { completed: 'Bezahlt', failed: 'Abgebrochen', created: 'Offen' };
@@ -580,7 +613,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         <tbody>${items.map((o) => `<tr>
           <td class="small">${new Date(o.created_at).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' })}<div class="muted">${esc(o.paypal_order_id)}</div></td>
           <td class="small"><strong>${esc(o.payer_name || '')}</strong>${o.payer_email ? `<br><a href="mailto:${esc(o.payer_email)}">${esc(o.payer_email)}</a>` : ''}<br>${addr(o.shipping_address)}</td>
-          <td class="small">${(o.items || []).map((i) => `#${esc(i.sku)} ${esc(i.name)} – ${eur(i.unit_amount?.value)}`).join('<br>')}</td>
+          <td class="small">${(o.items || []).map((i) => `#${esc(i.sku)} ${esc(i.name)} – ${eur(i.unit_amount?.value)}${locations[i.sku] ? ` <span class="loc">${esc(locations[i.sku])}</span>` : ''}`).join('<br>')}</td>
           <td><strong>${eur(o.total)}</strong><div class="small muted">inkl. ${eur(o.shipping)} Versand</div></td>
           <td><span class="st ${o.status}">${OS[o.status] || o.status}</span></td>
         </tr>`).join('')}</tbody>`;

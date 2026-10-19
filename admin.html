@@ -65,6 +65,10 @@
     .login { max-width: 380px; margin: 10vh auto; background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 28px; box-shadow: var(--shadow); display: grid; gap: 14px; }
     .login .brand { color: var(--ink); justify-content: center; }
     .row-actions { display: flex; gap: 6px; }
+    .location-field { margin-bottom: 14px; max-width: 520px; }
+    .location-field .input { font-size: 1rem; }
+    .loc { display: inline-block; background: #eef2ff; color: #3730a3; border-radius: 4px; padding: 1px 7px; font-size: .78rem; font-weight: 600; white-space: nowrap; }
+    .loc.none { background: var(--bg-3); color: var(--ink-3); font-weight: 400; }
     .steps { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
     .step { display: flex; gap: 12px; align-items: flex-start; padding: 12px; border: 1px solid var(--line); border-radius: var(--radius); opacity: .55; }
     .step.active { opacity: 1; border-color: var(--accent); background: var(--accent-soft); }
@@ -141,6 +145,11 @@
               <input class="input" type="number" id="min-price" value="0" min="0" step="0.5">
             </label>
           </div>
+          <label class="field location-field">Lagerort dieser Liste (Kiste)
+            <input class="input" id="location" list="location-list" maxlength="120" placeholder="z. B. Kiste 12 oder Regal 3 – Kiste A" autocomplete="off">
+            <span class="small muted" style="font-weight:400">Gilt für alle Platten der CSV-Datei. Nur für dich im Admin-Bereich sichtbar, nicht für Kunden.</span>
+          </label>
+          <datalist id="location-list"></datalist>
           <label class="drop" id="drop">
             <input type="file" accept=".csv,text/csv" id="file">
             <strong>CSV-Datei hier ablegen</strong> oder klicken zum Auswählen
@@ -196,6 +205,10 @@
             <option value="reserved">Reserviert</option>
             <option value="sold">Verkauft</option>
           </select>
+          <select class="select" name="location" id="rec-location">
+            <option value="">Alle Lagerorte</option>
+            <option value="__none__">Ohne Lagerort</option>
+          </select>
           <select class="select" name="sort">
             <option value="new">Neueste</option>
             <option value="artist">Künstler A–Z</option>
@@ -211,6 +224,7 @@
           <button class="btn btn-sm" data-bulk="available">Wieder verfügbar</button>
           <button class="btn btn-sm" data-bulk="draft">Verstecken</button>
           <button class="btn btn-sm" data-bulk="enrich">Preise &amp; Cover neu ermitteln</button>
+          <button class="btn btn-sm" data-bulk="location">Lagerort ändern</button>
           <button class="btn btn-sm" data-bulk="delete">Löschen</button>
         </div>
         <div class="table-wrap"><table class="t" id="rec-table"></table></div>

@@ -157,8 +157,7 @@ document.addEventListener('DOMContentLoaded', () => {
     return [r.label, r.catno, r.format, r.country, r.released].filter(Boolean).map(esc).join(' · ');
   }
   function priceBlock(r) {
-    const d = discount(r);
-    return `<div class="price">${eur(r.price)}</div>${r.avg_price ? `<div class="was">Marktpreis <s>${eur(r.avg_price)}</s>${d > 0 ? ` <span class="save">−${d}%</span>` : ''}</div>` : ''}`;
+    return `<div class="price">${eur(r.price)}</div>`;
   }
 
   function render() {

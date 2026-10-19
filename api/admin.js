@@ -22,6 +22,7 @@ export default async function handler(req, res) {
     if (action === 'stats') return await stats(res);
     if (action === 'records') return await records(req, res);
     if (action === 'orders') return await orders(res);
+    if (action === 'locations') return await locations(res);
     if (post && action === 'import') return await importRows(req, res);
     if (post && action === 'update') return await update(req, res);
     if (post && action === 'reprice') return await reprice(req, res);
@@ -88,9 +89,11 @@ async function records(req, res) {
   const p = [];
   const add = (clause, val) => { p.push(val); where.push(clause.replaceAll('?', `$${p.length}`)); };
   for (const t of String(Q.q || '').trim().split(/\s+/).filter(Boolean).slice(0, 8)) {
-    add(`concat_ws(' ', id::text, artist, title, label, catno, format, released, notes, batch, tracks) ILIKE ?`, `%${likeEsc(t)}%`);
+    add(`concat_ws(' ', id::text, artist, title, label, catno, format, released, notes, batch, tracks, location) ILIKE ?`, `%${likeEsc(t)}%`);
   }
   if (['available', 'draft', 'reserved', 'sold'].includes(Q.status)) add('status = ?', Q.status);
+  if (Q.location === '__none__') where.push(`coalesce(location, '') = ''`);
+  else if (Q.location) add('location = ?', String(Q.location));
   const per = Math.min(200, Math.max(10, parseInt(Q.per, 10) || 50));
   const page = Math.max(1, parseInt(Q.page, 10) || 1);
   const order = { new: 'created_at DESC, id DESC', artist: 'lower(artist), lower(title)', sold: 'sold_at DESC NULLS LAST, id DESC', price: 'price DESC NULLS LAST' }[Q.sort] || 'created_at DESC, id DESC';
@@ -99,15 +102,28 @@ async function records(req, res) {
   const [cnt, items] = await Promise.all([
     sql.query(`SELECT count(*)::int AS n FROM records WHERE ${w}`, p),
     sql.query(`SELECT id, release_id, artist, title, label, catno, format, media_condition, sleeve_condition,
-                 notes, avg_price, price, price_locked, status, thumb_url, cover_url, batch, created_at, sold_at
+                 notes, avg_price, price, price_locked, status, thumb_url, cover_url, batch, location, created_at, sold_at
                FROM records WHERE ${w} ORDER BY ${order} LIMIT ${per} OFFSET ${(page - 1) * per}`, p),
   ]);
   send(res, 200, { total: cnt[0].n, page, per, items });
 }
 
 async function orders(res) {
-  const items = await db().query(`SELECT * FROM orders WHERE status <> 'created' OR created_at > now() - interval '1 day'
-                                  ORDER BY created_at DESC LIMIT 300`);
+  const sql = db();
+  const items = await sql.query(`SELECT * FROM orders WHERE status <> 'created' OR created_at > now() - interval '1 day'
+                                 ORDER BY created_at DESC LIMIT 300`);
+  // Lagerort jeder bestellten Platte, damit sie schnell gefunden wird
+  const ids = [...new Set(items.flatMap((o) => o.record_ids || []))];
+  const locs = ids.length ? await sql.query('SELECT id, location FROM records WHERE id = ANY($1::int[])', [ids]) : [];
+  const locations = Object.fromEntries(locs.filter((r) => r.location).map((r) => [r.id, r.location]));
+  send(res, 200, { items, locations });
+}
+
+// Alle verwendeten Lagerorte mit Anzahl (für Vorschläge und Filter)
+async function locations(res) {
+  const items = await db().query(`SELECT location AS name, count(*)::int AS n,
+      count(*) FILTER (WHERE status = 'available')::int AS available
+    FROM records WHERE coalesce(location, '') <> '' GROUP BY 1 ORDER BY 1`);
   send(res, 200, { items });
 }
 
@@ -126,6 +142,7 @@ async function importRows(req, res) {
   const minPrice = Math.max(0, Number(req.body?.minPrice ?? 0));
   const auto = req.body?.auto === true;
   const batch = clean(req.body?.batch, 120);
+  const location = clean(req.body?.location, 120);
 
   const cols = { key: [], rel: [], lst: [], artist: [], title: [], label: [], catno: [], format: [], released: [], genre: [],
     media: [], sleeve: [], descr: [], notes: [], avg: [], price: [], status: [], cover: [], batch: [], tracks: [], country: [] };
@@ -161,9 +178,9 @@ async function importRows(req, res) {
 
   const result = await db().query(
     `INSERT INTO records (import_key, release_id, listing_id, artist, title, label, catno, format, released, genre,
-       media_condition, sleeve_condition, description, notes, avg_price, price, status, cover_url, thumb_url, batch, tracks, country, enrich_status)
+       media_condition, sleeve_condition, description, notes, avg_price, price, status, cover_url, thumb_url, batch, tracks, country, enrich_status, location)
      SELECT k, rel, lst, artist, title, label, catno, format, released, genre, media, sleeve, descr, notes, avg, price, status, cover, cover, batch, tracks, country,
-            CASE WHEN $22::boolean THEN 'pending' END
+            CASE WHEN $22::boolean THEN 'pending' END, $23::text
      FROM unnest($1::text[], $2::bigint[], $3::text[], $4::text[], $5::text[], $6::text[], $7::text[], $8::text[], $9::text[],
                  $10::text[], $11::text[], $12::text[], $13::text[], $14::text[], $15::numeric[], $16::numeric[], $17::text[],
                  $18::text[], $19::text[], $20::text[], $21::text[])
@@ -183,10 +200,11 @@ async function importRows(req, res) {
        tracks = coalesce(EXCLUDED.tracks, records.tracks),
        country = coalesce(EXCLUDED.country, records.country),
        enrich_status = CASE WHEN $22::boolean AND records.status NOT IN ('sold', 'reserved') THEN 'pending' ELSE records.enrich_status END,
+       location = coalesce(EXCLUDED.location, records.location),
        updated_at = now()
      RETURNING (xmax = 0) AS inserted`,
     [cols.key, cols.rel, cols.lst, cols.artist, cols.title, cols.label, cols.catno, cols.format, cols.released, cols.genre,
-      cols.media, cols.sleeve, cols.descr, cols.notes, cols.avg, cols.price, cols.status, cols.cover, cols.batch, cols.tracks, cols.country, auto],
+      cols.media, cols.sleeve, cols.descr, cols.notes, cols.avg, cols.price, cols.status, cols.cover, cols.batch, cols.tracks, cols.country, auto, location],
   );
   const inserted = result.filter((r) => r.inserted).length;
   send(res, 200, { inserted, updated: result.length - inserted, skipped });
@@ -207,6 +225,9 @@ async function update(req, res) {
     rows = await sql.query(`UPDATE records SET status = 'draft', updated_at = now() WHERE id = ANY($1::int[]) RETURNING id`, [ids]);
   } else if (op === 'enrich') {
     rows = await sql.query(`UPDATE records SET enrich_status = 'pending', enrich_note = NULL WHERE id = ANY($1::int[]) AND status NOT IN ('sold', 'reserved') RETURNING id`, [ids]);
+  } else if (op === 'location') {
+    const location = clean(req.body?.location, 120);
+    rows = await sql.query(`UPDATE records SET location = $2, updated_at = now() WHERE id = ANY($1::int[]) RETURNING id`, [ids, location]);
   } else if (op === 'delete') {
     rows = await sql.query(`DELETE FROM records WHERE id = ANY($1::int[]) RETURNING id`, [ids]);
   } else if (op === 'price') {

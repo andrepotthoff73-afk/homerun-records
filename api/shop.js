@@ -5,7 +5,7 @@ import { ZONE_PRICES, ZONE_NAMES, zoneOf, shippableCountries } from './_lib/vers
 import { fetchCover } from './_lib/katalog.js';
 
 const LIST_COLS = `id, release_id, artist, title, label, catno, format, released, genre, country,
-  media_condition, sleeve_condition, avg_price, price, status, cover_url, thumb_url, created_at`;
+  media_condition, sleeve_condition, price, status, cover_url, thumb_url, created_at`;
 const PUBLIC_COLS = `${LIST_COLS}, description, tracks`;
 const YEAR = `(substring(released from '(\\d{4})'))::int`;
 
