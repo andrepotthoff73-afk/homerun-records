@@ -54,7 +54,7 @@
     <h2>Marktpreise für den Shop</h2>
     <p class="small muted" style="margin-top:0">Nimmt die Platten, die im Admin-Bereich deiner Website auf ihren Preis warten. Für jede Platte wird die Discogs-Verkaufsseite in Microsoft Edge geöffnet (über die Release-ID, sonst über die Katalognummer).
       Die <strong>ersten 10 Angebote von Verkäufern aus Deutschland</strong> werden addiert und durch 10 geteilt. Gibt es weniger als 10, wird mit Angeboten aus anderen Ländern aufgefüllt.
-      Vom Durchschnitt zieht der Shop deinen Rabatt ab (wie beim CSV-Import eingestellt). Der Preis wird sofort eingetragen und die Platte geht online.</p>
+      Dieser Durchschnitt wird ohne Abzug als Verkaufspreis eingetragen und die Platte geht sofort online.</p>
     <div class="grid" style="margin-bottom:12px">
       <label class="f">Adresse deiner Website
         <input type="url" id="mk-site" placeholder="https://homerun-records.vercel.app">
@@ -91,9 +91,6 @@
     <div class="grid">
       <label class="f">Discogs-Token
         <input type="password" id="token" placeholder="noch nicht eingetragen" autocomplete="off">
-      </label>
-      <label class="f">Rabatt auf den Durchschnitt (%)
-        <input type="number" id="discount" min="0" max="90" step="1">
       </label>
       <label class="f">Mindestpreis (€)
         <input type="number" id="minPrice" min="0" step="0.5">
@@ -215,7 +212,6 @@ async function refresh() {
   const s = await (await fetch('/api/state')).json();
   renderMarket(s);
   if (first) {
-    $('discount').value = s.settings.discount;
     $('minPrice').value = s.settings.minPrice;
     $('site').value = s.settings.site || '';
     $('covers').checked = s.settings.covers;
@@ -262,14 +258,14 @@ async function refresh() {
 $('save').onclick = async () => {
   $('set-msg').innerHTML = '';
   try {
-    const r = await post('/api/settings', { token: $('token').value, discount: $('discount').value, minPrice: $('minPrice').value, site: $('site').value, covers: $('covers').checked, test: true });
+    const r = await post('/api/settings', { token: $('token').value, minPrice: $('minPrice').value, site: $('site').value, covers: $('covers').checked, test: true });
     $('token').value = '';
     $('set-msg').innerHTML = `<div class="note ok">Gespeichert${r.user ? ` – Token gültig für Discogs-Konto „${esc(r.user)}“` : ''}.</div>`;
   } catch (e) { $('set-msg').innerHTML = `<div class="note err">${esc(e.message)}</div>`; }
   refresh();
 };
-['discount', 'minPrice', 'site', 'covers'].forEach((id) => $(id).addEventListener('change', () =>
-  post('/api/settings', { discount: $('discount').value, minPrice: $('minPrice').value, site: $('site').value, covers: $('covers').checked })));
+['minPrice', 'site', 'covers'].forEach((id) => $(id).addEventListener('change', () =>
+  post('/api/settings', { minPrice: $('minPrice').value, site: $('site').value, covers: $('covers').checked })));
 
 function pick(f) {
   if (!f) return;

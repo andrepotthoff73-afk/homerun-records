@@ -6,7 +6,7 @@ Vinyl-Shop im Discogs-Stil mit passwortgeschütztem Admin-Bereich.
 - **Erweiterte Suche** (`/suche`): Künstler, Album, Track, Label, Katalognummer, Format, Genre/Stil, Land, Jahr von–bis, Zustand Platte/Hülle, Preis, Sortierung – mit Live-Trefferzahl
 - Auf der öffentlichen Website wird Discogs nirgends erwähnt (Preise heißen dort „Marktpreis“).
 - **PayPal-Checkout** (`/cart`): Preise werden auf dem Server geprüft, bezahlte Platten werden **automatisch als verkauft markiert**
-- **Admin** (`/admin`): CSV-Import aus Discogs mit Zustandsabfrage (Preis = Ø der ersten 10 Marktplatz-Angebote aus Deutschland minus Rabatt, über das Preis-Tool), Platten als verkauft markieren, Preise ändern, Bestellungen mit Lieferadresse ansehen, Cover von Discogs laden
+- **Admin** (`/admin`): CSV-Import aus Discogs mit Zustandsabfrage (Preis = Ø der ersten 10 Marktplatz-Angebote aus Deutschland, ohne Rabatt, über das Preis-Tool), Platten als verkauft markieren, Preise ändern, Bestellungen mit Lieferadresse ansehen, Cover von Discogs laden
 
 Technik: statisches HTML/CSS/JS + 3 Vercel-Funktionen (`/api`) + Postgres-Datenbank (Neon, kostenloser Tarif reicht für 20.000 Platten).
 
@@ -55,7 +55,7 @@ Vercel → Settings → Domains → z. B. `homerun-records.de` eintragen und den
 1. `https://deine-domain/admin` öffnen und mit dem Passwort anmelden.
 2. **CSV-Import** → CSV-Datei hineinziehen.
 3. Die Spalten werden automatisch erkannt. Prüfe vor allem, dass **„Ø Discogs-Preis“** auf die richtige Spalte zeigt.
-4. Rabatt (Standard 10 %) und optional einen Mindestpreis prüfen → **Import starten**.
+4. Optional einen Mindestpreis prüfen → **Import starten**.
 
 - Dieselbe Liste kann problemlos erneut hochgeladen werden: Vorhandene Platten werden aktualisiert, nicht verdoppelt. Verkaufte Platten und von Hand geänderte Preise bleiben unverändert.
 - Mehrere Exemplare derselben Platte in einer Liste werden einzeln angelegt.
@@ -72,7 +72,7 @@ Verkäufe über PayPal werden automatisch markiert.
 Admin → **Bestellungen**: Käufer, E-Mail, Lieferadresse und gekaufte Platten. Die Zahlungsbestätigung bekommst du zusätzlich von PayPal per E-Mail.
 
 ### Werkzeuge
-- **Preise neu berechnen** mit anderem Rabatt (von Hand gesetzte Preise bleiben unverändert).
+- **Preise neu berechnen**: setzt alle automatischen Preise auf den Ø-Marktpreis (von Hand gesetzte Preise bleiben unverändert).
 - **Cover & Tracklisten laden**: holt Cover, Trackliste, Genre und Land über die Discogs-API (ca. 60 pro Minute, 20.000 Platten ≈ 6 Stunden). Den Tab einfach offen lassen; Abbrechen und später Weitermachen ist jederzeit möglich. Cover werden zusätzlich automatisch geladen, sobald jemand eine Platte im Shop ansieht.
 
 ### Track-Suche
@@ -104,7 +104,7 @@ beispiel-import.csv        Beispieldatei zum Testen des Imports
 
 ## Platten erfassen – empfohlen
 
-1. Admin → **„Platten erfassen“** → Rabatt (Standard 5 %), Mindestpreis und Lagerort (Kiste) prüfen.
+1. Admin → **„Platten erfassen“** → Mindestpreis und Lagerort (Kiste) prüfen.
 2. **Discogs-CSV ablegen.** Die Platten werden sofort angelegt (bereits vorhandene nur aktualisiert).
 3. **Zustand angeben:** Die Seite fragt Platte für Platte nach dem Zustand von Platte und Hülle.
    - Klicken oder Tastatur: Ziffern **1–8** = M, NM, VG+, VG, G+, G, F, P – erst für die Platte, dann für die Hülle (**9** = Generic, **0** = keine Hülle)
@@ -119,7 +119,7 @@ beispiel-import.csv        Beispieldatei zum Testen des Imports
   über die **Release-ID** (`discogs.com/sell/release/…`), wenn keine bekannt ist über die **Katalognummer** (`discogs.com/sell/list?q=…`, nur Vinyl).
 - Es nimmt die **ersten 10 Angebote von Verkäufern aus Deutschland** – in der Reihenfolge, in der Discogs sie anzeigt, egal in welchem Zustand.
 - Gibt es weniger als 10, wird mit Angeboten **aus anderen Ländern** aufgefüllt. Gibt es insgesamt weniger als 10, wird durch die tatsächliche Anzahl geteilt.
-- **Ø = Summe ÷ Anzahl** (Fremdwährungen mit dem EZB-Tageskurs in Euro), **Verkaufspreis = Ø minus Rabatt**, mindestens der Mindestpreis.
+- **Ø = Summe ÷ Anzahl** (Fremdwährungen mit dem EZB-Tageskurs in Euro), **Verkaufspreis = Ø** (kein Rabatt), mindestens der Mindestpreis.
 - Die Platte geht sofort online. Ohne ein einziges Angebot bleibt sie Entwurf (Preis dann von Hand eintragen).
 - Im Admin-Bereich steht bei jeder Platte, aus wie vielen Angeboten (davon wie viele aus Deutschland) der Preis stammt, mit Link zu den Angeboten.
 
@@ -147,7 +147,7 @@ Einzelne Platten neu bepreisen: Admin → Platten → anhaken → **„Preise & 
 - Niedrig = Preisvorschlag für Zustand **VG**
 - Mittel = Preisvorschlag für Zustand **VG+**
 - Hoch = Preisvorschlag für Zustand **NM**
-- Durchschnitt = Mittelwert der drei → **Verkaufspreis = Durchschnitt minus Rabatt (10 %)**, mindestens der eingestellte Mindestpreis
+- Durchschnitt = Mittelwert der drei → **Verkaufspreis = Durchschnitt** (kein Rabatt), mindestens der eingestellte Mindestpreis
 - Fehlen Preisvorschläge, wird ersatzweise das günstigste aktuelle Angebot verwendet (Hinweis in der Liste). Gibt es gar keinen Preis, landet die Platte im Shop als Entwurf.
 - Fremdwährungen werden mit dem Tageskurs der EZB in Euro umgerechnet.
 

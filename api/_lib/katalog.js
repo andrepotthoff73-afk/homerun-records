@@ -212,7 +212,7 @@ export async function enrichRecord(rec) {
   return { notes, market: true, ...rows[0] };
 }
 
-// Verkaufspreis aus dem Ø der Marktplatz-Angebote: Ø minus Rabatt, mindestens Mindestpreis
+// Verkaufspreis aus dem Ø der Marktplatz-Angebote (ohne Rabatt), mindestens Mindestpreis
 export function salePrice(avg, { discount = 0, minPrice = 0 } = {}) {
   if (avg == null) return null;
   let sale = round2(avg * (100 - discount) / 100);

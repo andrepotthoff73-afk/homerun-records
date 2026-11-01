@@ -1,6 +1,6 @@
 // Homerun Records – Preis-Tool
 // Liest eine Discogs-CSV, holt Preise, Cover, Tracklisten über die offizielle Discogs-API,
-// berechnet den Verkaufspreis (Ø minus Rabatt) und lädt auf Wunsch alles in den Shop.
+// berechnet den Verkaufspreis (= Ø, ohne Rabatt) und lädt auf Wunsch alles in den Shop.
 import http from 'node:http';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -223,7 +223,7 @@ function writeOutput(j) {
 
 async function run(j) {
   await loadRates();
-  const discount = Number(settings.discount) || 0;
+  const discount = 0; // kein Rabatt
   const minPrice = Number(settings.minPrice) || 0;
   while (j.i < j.data.length && j.state === 'running') {
     const row = j.data[j.i];
@@ -346,7 +346,7 @@ async function shopImport(password) {
     const tot = { inserted: 0, updated: 0, skipped: 0 };
     for (let i = 0; i < rows.length; i += 400) {
       const chunk = rows.slice(i, i + 400);
-      const { j: r } = await shopFetch(site, 'import', { rows: chunk, discount: Number(settings.discount) || 0, minPrice: Number(settings.minPrice) || 0, batch: j.base }, cookie);
+      const { j: r } = await shopFetch(site, 'import', { rows: chunk, discount: 0, minPrice: Number(settings.minPrice) || 0, batch: j.base }, cookie);
       tot.inserted += r.inserted; tot.updated += r.updated; tot.skipped += r.skipped;
       shopJob.done += chunk.length;
     }

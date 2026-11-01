@@ -164,22 +164,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     return m;
   }
 
-  // Rabatt & Mindestpreis merken
+  // Mindestpreis merken (kein Rabatt: Verkaufspreis = Ø-Marktpreis)
   try {
     const saved = JSON.parse(localStorage.getItem('hr_enrich_v2') || '{}');
-    if (saved.discount != null) $('discount').value = saved.discount;
     if (saved.minPrice != null) $('min-price').value = saved.minPrice;
   } catch { /* ignorieren */ }
   function settingsNow() {
     return {
-      discount: Math.min(90, Math.max(0, Number($('discount').value) || 0)),
+      discount: 0,
       minPrice: Math.max(0, Number(String($('min-price').value).replace(',', '.')) || 0),
     };
   }
   function saveSettings() {
     try { localStorage.setItem('hr_enrich_v2', JSON.stringify(settingsNow())); } catch { /* ignorieren */ }
   }
-  ['discount', 'min-price'].forEach((id) => $(id).addEventListener('change', saveSettings));
+  $('min-price').addEventListener('change', saveSettings);
 
   async function readFile(file) {
     if (!file) return;
@@ -791,10 +790,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // ---------- Werkzeuge ----------
   $('reprice').addEventListener('click', async () => {
-    const d = Number($('reprice-discount').value);
-    if (!confirm(`Alle automatischen Preise auf Ø-Marktpreis minus ${d} % setzen?`)) return;
+    if (!confirm('Alle automatischen Preise auf den Ø-Marktpreis setzen (ohne Rabatt)?')) return;
     try {
-      const r = await call('/api/admin?action=reprice', { body: { discount: d } });
+      const r = await call('/api/admin?action=reprice', { body: {} });
       toast(`${num(r.changed)} Preise neu berechnet`);
     } catch (e) { toast(e.message); }
   });

@@ -149,7 +149,7 @@ const posNum = (v) => {
 
 async function importRows(req, res) {
   const rows = Array.isArray(req.body?.rows) ? req.body.rows.slice(0, 1000) : [];
-  const discount = Math.min(90, Math.max(0, Number(req.body?.discount ?? 5)));
+  const discount = 0; // kein Rabatt: Verkaufspreis = Ø-Marktpreis
   const minPrice = Math.max(0, Number(req.body?.minPrice ?? 0));
   const auto = req.body?.auto === true;
   const batch = clean(req.body?.batch, 120);
@@ -255,13 +255,12 @@ async function update(req, res) {
 }
 
 async function reprice(req, res) {
-  const discount = Math.min(90, Math.max(0, Number(req.body?.discount ?? 5)));
-  await saveSettings({ discount });
+  await saveSettings({ discount: 0 });
   const rows = await db().query(
-    // Ø-Marktpreis minus Rabatt
+    // Verkaufspreis = Ø-Marktpreis (kein Rabatt)
     `UPDATE records SET price = round(avg_price * (100 - $1) / 100.0, 2), updated_at = now()
      WHERE avg_price IS NOT NULL AND NOT price_locked AND status IN ('available', 'draft') RETURNING id`,
-    [discount],
+    [0],
   );
   send(res, 200, { changed: rows.length });
 }
@@ -324,10 +323,10 @@ async function enrichNoSuggestions(res) {
   send(res, 200, { changed: rows.length });
 }
 
-// ---------- Einstellungen (Rabatt, Mindestpreis) – das Preis-Tool rechnet damit ----------
+// ---------- Einstellungen (Mindestpreis) – das Preis-Tool rechnet damit. Rabatt gibt es nicht mehr. ----------
 async function loadSettings() {
   const row = (await db().query(`SELECT value FROM app_settings WHERE key = 'pricing'`))[0];
-  return { discount: 5, minPrice: 0, ...(row?.value || {}) };
+  return { minPrice: 0, ...(row?.value || {}), discount: 0 };
 }
 async function saveSettings(patch) {
   const next = { ...(await loadSettings()), ...patch };
@@ -432,7 +431,6 @@ async function marketPrice(req, res) {
   const parts = [`Ø aus ${offers.length} Angebot${offers.length === 1 ? '' : 'en'}`, `${de}× Deutschland`];
   if (offers.length - de) parts.push(`${offers.length - de}× andere Länder`);
   if (offers.length < 10) parts.push('weniger als 10 Angebote vorhanden');
-  if (s.discount) parts.push(`minus ${s.discount} %`);
   if (sale === r2(s.minPrice) && s.minPrice > 0) parts.push(`Mindestpreis ${Number(s.minPrice).toFixed(2)} €`);
   const note = parts.join(' · ');
   const rows = await sql.query(

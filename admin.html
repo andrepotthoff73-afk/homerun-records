@@ -150,11 +150,8 @@
       <section class="panel hidden" data-panel="import">
         <div class="card-box">
           <h2>Platten erfassen</h2>
-          <p class="muted small" style="margin-top:0">Lege die CSV-Datei deiner Discogs-Sammlung ab. Danach fragt die Seite bei jeder Platte nach dem Zustand. Cover, Trackliste, Genre und Land werden automatisch geladen. Den Preis ermittelt das Preis-Tool auf deinem PC: Durchschnitt der ersten 10 Marktplatz-Angebote aus Deutschland (fehlende werden mit anderen Ländern aufgefüllt), minus Rabatt.</p>
+          <p class="muted small" style="margin-top:0">Lege die CSV-Datei deiner Discogs-Sammlung ab. Danach fragt die Seite bei jeder Platte nach dem Zustand. Cover, Trackliste, Genre und Land werden automatisch geladen. Den Preis ermittelt das Preis-Tool auf deinem PC: Durchschnitt der ersten 10 Marktplatz-Angebote aus Deutschland (fehlende werden mit anderen Ländern aufgefüllt) – ohne Rabatt.</p>
           <div class="form-grid" style="margin-bottom:14px">
-            <label class="field">Rabatt auf den Durchschnitt (%)
-              <input class="input" type="number" id="discount" value="5" min="0" max="90" step="1">
-            </label>
             <label class="field">Mindestpreis (€)
               <input class="input" type="number" id="min-price" value="0" min="0" step="0.5">
             </label>
@@ -281,11 +278,8 @@
       <section class="panel hidden" data-panel="tools">
         <div class="card-box">
           <h2>Alle Preise neu berechnen</h2>
-          <p class="muted small" style="margin-top:0">Berechnet den Verkaufspreis aller verfügbaren Platten und Entwürfe neu aus dem gespeicherten Ø-Marktpreis. Von Hand geänderte Preise bleiben unverändert.</p>
+          <p class="muted small" style="margin-top:0">Setzt den Verkaufspreis aller verfügbaren Platten und Entwürfe auf den gespeicherten Ø-Marktpreis (ohne Rabatt). Von Hand geänderte Preise bleiben unverändert.</p>
           <div class="toolbar">
-            <label class="field" style="flex-direction:row;display:flex;align-items:center;gap:8px">Rabatt (%)
-              <input class="input" type="number" id="reprice-discount" value="5" min="0" max="90" style="width:90px">
-            </label>
             <button class="btn btn-dark" id="reprice">Neu berechnen</button>
           </div>
         </div>
