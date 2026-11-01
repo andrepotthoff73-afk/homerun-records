@@ -12,14 +12,14 @@ const WANT = 10; // so viele Angebote werden gemittelt
 const GERMANY = /^(germany|deutschland)$/i;
 
 export function createMarket({ dataDir, outRoot, getSettings, saveSettings, rates, loadRates }) {
-  const profileDir = path.join(dataDir, 'browser-profil');
+  const profileDir = path.join(dataDir, 'edge-profil');
   const debugDir = path.join(outRoot, 'debug');
   const state = {
     state: 'idle', // idle | running | stopping | stopped | error
     note: '', error: '', needLogin: false, challenge: false,
     done: 0, remaining: null, waiting: null, results: [], started: 0,
   };
-  let ctx = null;
+  let browserObj = null;
   let page = null;
   let runToken = 0;
   const skip = new Set();
@@ -55,38 +55,66 @@ export function createMarket({ dataDir, outRoot, getSettings, saveSettings, rate
   }
 
   // ---------- Browser ----------
+  // Edge wird ganz normal als eigenes Programm gestartet (wie per Doppelklick) und das Tool verbindet
+  // sich erst danach. So fehlen die Automatik-Kennzeichen, an denen Cloudflare ferngesteuerte Browser erkennt.
+  let proc = null;
+  const PORT = 9333 + Math.floor(Math.random() * 400);
+  function browserPath() {
+    if (process.env.HR_BROWSER_PATH) return process.env.HR_BROWSER_PATH;
+    const pf = [process.env['ProgramFiles(x86)'], process.env.ProgramFiles, process.env.LOCALAPPDATA].filter(Boolean);
+    const rel = ['Microsoft\\Edge\\Application\\msedge.exe', 'Google\\Chrome\\Application\\chrome.exe'];
+    for (const r of rel) for (const base of pf) {
+      const f = path.join(base, r);
+      if (fs.existsSync(f)) return f;
+    }
+    return '';
+  }
+  // Beim Schließen des Preis-Tool-Fensters auch Edge schließen
+  const killBrowser = () => { try { proc?.kill(); } catch { /* egal */ } };
+  process.on('exit', killBrowser);
+  for (const sig of ['SIGINT', 'SIGHUP', 'SIGTERM', 'SIGBREAK']) process.on(sig, () => { killBrowser(); process.exit(0); });
   async function openBrowser() {
-    if (ctx) return;
+    if (page && !page.isClosed()) return;
     let chromium;
     try { ({ chromium } = await import('playwright-core')); } catch {
       throw new Error('Browser-Steuerung fehlt. Bitte das Preis-Tool schließen und neu starten (es richtet sich dann selbst ein).');
     }
-    const visible = Boolean(getSettings().marketVisible);
-    const base = {
-      headless: process.env.HR_HEADLESS === '1',
-      viewport: null,
-      locale: 'de-DE',
-      args: visible ? [] : ['--start-minimized'],
-    };
-    const tries = process.env.HR_BROWSER_PATH
-      ? [{ executablePath: process.env.HR_BROWSER_PATH }]
-      : [{ channel: 'msedge' }, { channel: 'chrome' }];
-    let lastErr;
-    for (const t of tries) {
-      try {
-        ctx = await chromium.launchPersistentContext(profileDir, { ...base, ...t });
-        break;
-      } catch (e) { lastErr = e; }
+    if (!browserObj) {
+      const exe = browserPath();
+      if (!exe) throw new Error('Microsoft Edge wurde auf diesem PC nicht gefunden.');
+      const visible = Boolean(getSettings().marketVisible);
+      const args = [
+        `--remote-debugging-port=${PORT}`,
+        `--user-data-dir=${profileDir}`,
+        '--no-first-run', '--no-default-browser-check', '--disable-features=msEdgeSidebarV2',
+        ...(visible ? [] : ['--start-minimized']),
+        ...(process.env.HR_HEADLESS === '1' ? ['--headless=new', '--no-sandbox'] : []),
+        'about:blank',
+      ];
+      const { spawn } = await import('node:child_process');
+      proc = spawn(exe, args, { stdio: 'ignore', detached: false });
+      proc.on('exit', () => { proc = null; browserObj = null; page = null; });
+      // Warten, bis Edge bereit ist
+      let ok = false;
+      for (let i = 0; i < 60 && !ok; i++) {
+        await sleep(500);
+        ok = await fetch(`http://127.0.0.1:${PORT}/json/version`).then((r) => r.ok).catch(() => false);
+      }
+      if (!ok) { try { proc?.kill(); } catch { /* egal */ } throw new Error('Microsoft Edge konnte nicht gestartet werden.'); }
+      browserObj = await chromium.connectOverCDP(`http://127.0.0.1:${PORT}`);
+      browserObj.on('disconnected', () => { browserObj = null; page = null; });
     }
-    if (!ctx) throw new Error(`Microsoft Edge konnte nicht gestartet werden (${String(lastErr?.message || '').split('\n')[0]}).`);
-    ctx.on('close', () => { ctx = null; page = null; });
-    page = ctx.pages()[0] || await ctx.newPage();
+    const context = browserObj.contexts()[0] || await browserObj.newContext();
+    page = context.pages().find((p) => !p.isClosed()) || await context.newPage();
   }
   async function closeBrowser() {
-    const c = ctx;
-    ctx = null;
+    const b = browserObj;
+    const p = proc;
+    browserObj = null;
     page = null;
-    try { await c?.close(); } catch { /* schon zu */ }
+    proc = null;
+    try { await b?.close(); } catch { /* schon zu */ }
+    try { p?.kill(); } catch { /* schon zu */ }
   }
 
   // Seite laden; bei der „Bist du ein Mensch?“-Prüfung das Fenster zeigen und warten
