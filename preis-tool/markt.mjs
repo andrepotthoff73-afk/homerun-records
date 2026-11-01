@@ -236,10 +236,10 @@ export function createMarket({ dataDir, outRoot, getSettings, saveSettings, rate
   }
 
   // Verkaufsseite einer Pressung (Release-ID). Der Länderfilter „ships_from“ wirkt hier zuverlässig.
-  function sellUrl(releaseId, germanyOnly) {
+  function sellUrl(releaseId, germanyOnly, limit = 50) {
     const qs = new URLSearchParams();
     if (germanyOnly) qs.set('ships_from', 'Germany');
-    qs.set('limit', '50');
+    qs.set('limit', String(limit));
     return `${DISCOGS}/sell/release/${releaseId}?${qs}`;
   }
 
@@ -286,29 +286,33 @@ export function createMarket({ dataDir, outRoot, getSettings, saveSettings, rate
         if (used.length >= WANT) break;
         const key = o.item || `${o.value}|${o.text}|${o.shipsFrom}|${o.cond}`;
         if (seen.has(key)) continue;
-        if (onlyGermany && o.shipsFrom && !GERMANY.test(o.shipsFrom)) continue;
-        if (!onlyGermany && GERMANY.test(o.shipsFrom) && !o.item) continue;
+        if (onlyGermany && !GERMANY.test(o.shipsFrom)) continue;
         const eur = toEur(o);
         if (eur == null || eur <= 0) continue;
         seen.add(key);
-        used.push({ eur, country: o.shipsFrom || (onlyGermany ? 'Germany' : ''), condition: o.cond, item: o.item });
+        used.push({ eur, country: o.shipsFrom || '', condition: o.cond, item: o.item });
       }
     };
-    // 1. Nur Verkäufer aus Deutschland
+    // Sparsam: EINE Seite mit bis zu 100 Angeboten aller Länder laden. Die Reihenfolge ist dieselbe wie mit
+    // Deutschland-Filter – die ersten deutschen Angebote darauf sind also genau die ersten 10 aus Deutschland.
     const deUrl = sellUrl(releaseId, true);
-    await load(deUrl, token);
-    const de = await readOffers();
-    take(de.offers, true);
-    // 2. Weniger als 10 → mit Angeboten aus anderen Ländern auffüllen
-    let all = null;
-    if (used.length < WANT) {
-      await sleep(4000 + Math.random() * 3000);
-      await load(sellUrl(releaseId, false), token);
-      all = await readOffers();
-      take(all.offers, false);
-    }
+    const allUrl = sellUrl(releaseId, false, 100);
+    await load(allUrl, token);
+    const all = await readOffers();
+    const unknownCountry = all.offers.length && all.offers.every((o) => !o.shipsFrom);
+    let de = null;
+    if (unknownCountry || (all.offers.length >= 100 && all.offers.filter((o) => GERMANY.test(o.shipsFrom)).length < WANT)) {
+      // Land nicht lesbar oder mehr als 100 Angebote → zusätzlich die Seite nur mit Deutschland laden
+      await sleep(6000 + Math.random() * 4000);
+      await load(deUrl, token);
+      de = await readOffers();
+      if (unknownCountry) de.offers.forEach((o) => { o.shipsFrom ||= 'Germany'; });
+      take(de.offers, true);
+    } else take(all.offers, true);
+    // Weniger als 10 aus Deutschland → mit den übrigen Angeboten (andere Länder) in derselben Reihenfolge auffüllen
+    take(all.offers, false);
     if (!used.length) {
-      const title = (all || de).title || '';
+      const title = all.title || '';
       if (!/zu verkaufen|for sale|marktplatz|marketplace/i.test(title)) {
         // Seite sah anders aus als erwartet → zur Fehlersuche speichern
         const f = saveDebug(rec, await page.content().catch(() => ''), 'keine Angebote erkannt');
@@ -320,6 +324,7 @@ export function createMarket({ dataDir, outRoot, getSettings, saveSettings, rate
   }
 
   // ---------- Ablauf ----------
+  let strikes = 0;
   async function run(token) {
     await loadRates();
     while (token === runToken && state.state === 'running') {
@@ -358,9 +363,11 @@ export function createMarket({ dataDir, outRoot, getSettings, saveSettings, rate
       } catch (e) {
         if (token !== runToken) break;
         if (e.rateLimit) {
-          // Discogs bremst → 3 Minuten Pause, dann dieselbe Platte erneut
+          // Discogs bremst → Pause (5, 10, 20, dann 30 Minuten), dann dieselbe Platte erneut
           await closeBrowser();
-          for (let w = 180; w > 0 && token === runToken; w--) {
+          strikes++;
+          const secs = [300, 600, 1200, 1800][Math.min(strikes, 4) - 1];
+          for (let w = secs; w > 0 && token === runToken; w--) {
             state.note = `Discogs meldet zu viele Abrufe – Pause, weiter in ${Math.ceil(w / 60)} Min.`;
             await sleep(1000);
           }
@@ -373,6 +380,7 @@ export function createMarket({ dataDir, outRoot, getSettings, saveSettings, rate
         await sleep(10000);
         continue;
       }
+      strikes = 0;
       if (result.technical) skip.add(rec.id);
       else {
         try {
@@ -387,8 +395,8 @@ export function createMarket({ dataDir, outRoot, getSettings, saveSettings, rate
       }
       state.results.unshift({ ...rec, ...result, at: Date.now(), ms: Date.now() - t0 });
       state.results.length = Math.min(state.results.length, 300);
-      // Schonend abrufen: 8–12 Sekunden Pause zwischen zwei Platten
-      const pause = 8000 + Math.random() * 4000;
+      // Schonend abrufen: 12–18 Sekunden Pause zwischen zwei Platten
+      const pause = 12000 + Math.random() * 6000;
       state.note = 'kurze Pause …';
       for (let w = 0; w < pause && token === runToken; w += 500) await sleep(500);
     }

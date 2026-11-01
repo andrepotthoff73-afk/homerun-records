@@ -124,7 +124,7 @@ beispiel-import.csv        Beispieldatei zum Testen des Imports
 - Im Admin-Bereich steht bei jeder Platte, aus wie vielen Angeboten (davon wie viele aus Deutschland) der Preis stammt, mit Link zu den Angeboten.
 
 **Warum auf dem PC?** Discogs blockt automatische Abrufe der Verkaufsseiten von Servern (auch von Vercel). Ein normaler Browser auf deinem PC kommt durch.
-- Tempo: etwa eine Platte alle 15–25 Sekunden (absichtlich langsam, damit Discogs nicht sperrt). 1.000 Platten ≈ 5–6 Stunden. Meldet Discogs „zu viele Abrufe“, pausiert das Tool 3 Minuten und macht dann weiter. Der PC muss dabei laufen; das Edge-Fenster bleibt minimiert.
+- Tempo: etwa eine Platte alle 15–20 Sekunden, meist mit nur einem Seitenabruf pro Platte (absichtlich langsam, damit Discogs nicht bremst). 1.000 Platten ≈ 5 Stunden. Meldet Discogs „zu viele Abrufe“, pausiert das Tool 5, 10, 20, dann 30 Minuten und macht danach von selbst weiter. Der PC muss dabei laufen; das Edge-Fenster bleibt minimiert.
 - Zeigt Discogs eine Prüfung („Bist du ein Mensch?“), öffnet sich das Edge-Fenster: einmal bestätigen, dann geht es weiter.
 - Das Tool lädt bei Bedarf auch Cover & Daten nach, der Admin-Bereich muss dafür nicht offen sein.
 - Erkennt das Tool auf einer Seite keine Angebote, obwohl welche da sein müssten, speichert es die Seite unter `Ergebnisse/debug/` – damit lässt sich das Tool an einen geänderten Seitenaufbau anpassen.
