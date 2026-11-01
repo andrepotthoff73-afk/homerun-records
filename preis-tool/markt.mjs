@@ -25,7 +25,11 @@ export function createMarket({ dataDir, outRoot, getSettings, saveSettings, rate
   const skip = new Set();
 
   // ---------- Shop ----------
-  const site = () => String(getSettings().site || '').replace(/\/+$/, '');
+  // Nur Protokoll + Domain verwenden, z. B. aus „https://…vercel.app/admin“ wird „https://…vercel.app“
+  const site = () => {
+    const raw = String(getSettings().site || '').trim();
+    try { return new URL(raw).origin; } catch { return raw.replace(/\/+$/, ''); }
+  };
   async function shop(action, { body, query = '' } = {}) {
     const s = getSettings();
     const r = await fetch(`${site()}/api/admin?action=${action}${query}`, {

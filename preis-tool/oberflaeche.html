@@ -49,6 +49,7 @@
 <body>
 <header><strong style="letter-spacing:.02em">HOMERUN <b>RECORDS</b></strong><span class="tag">Preis-Tool</span></header>
 <main>
+  <div class="note err" id="down" hidden><strong>Das Preis-Tool läuft nicht.</strong> Bitte im Ordner <code>Desktop\homerun-records</code> die Datei <code>Preis-Tool-starten.bat</code> doppelklicken und das schwarze Fenster offen lassen.</div>
 
   <section class="card" id="mk" style="border:2px solid var(--acc)">
     <h2>Marktpreise für den Shop</h2>
@@ -303,7 +304,12 @@ $('mk-start').onclick = async () => {
   try {
     await post('/api/market/start', { site: $('mk-site').value, password: $('mk-pw').value });
     $('mk-pw').value = '';
-  } catch (e) { $('mk-msg').innerHTML = `<div class="note err">${esc(e.message)}</div>`; }
+  } catch (e) {
+    const msg = /networkerror|failed to fetch/i.test(e.message)
+      ? 'Das Preis-Tool läuft nicht (mehr). Bitte Preis-Tool-starten.bat erneut doppelklicken und diese Seite neu laden.'
+      : e.message;
+    $('mk-msg').innerHTML = `<div class="note err">${esc(msg)}</div>`;
+  }
   $('mk-start').disabled = false;
   refresh();
 };
@@ -312,8 +318,12 @@ $('mk-logout').onclick = () => post('/api/market/logout').then(refresh);
 $('mk-visible').onchange = () => post('/api/settings', { marketVisible: $('mk-visible').checked });
 $('mk-site').onchange = () => { $('site').value = $('mk-site').value; post('/api/settings', { site: $('mk-site').value }); };
 
-refresh();
-setInterval(refresh, 2000);
+// Läuft das Preis-Tool (schwarzes Fenster) nicht mehr, deutlich darauf hinweisen
+function tick() {
+  refresh().then(() => { $('down').hidden = true; }).catch(() => { $('down').hidden = false; });
+}
+tick();
+setInterval(tick, 2000);
 </script>
 </body>
 </html>
