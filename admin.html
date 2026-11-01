@@ -79,6 +79,8 @@
     details#adv summary { cursor: pointer; }
     @media (max-width: 640px) { .steps { grid-template-columns: 1fr; } }
     .steps.four { grid-template-columns: repeat(4, 1fr); }
+    .steps.three { grid-template-columns: repeat(3, 1fr); }
+    @media (max-width: 900px) { .steps.three { grid-template-columns: 1fr; } }
     @media (max-width: 900px) { .steps.four { grid-template-columns: 1fr 1fr; } }
     #cond-box { border-color: var(--accent); }
     .cond-rec { font-size: 1.15rem; margin: 4px 0 2px; }
@@ -150,8 +152,14 @@
       <section class="panel hidden" data-panel="import">
         <div class="card-box">
           <h2>Platten erfassen</h2>
-          <p class="muted small" style="margin-top:0">Lege die CSV-Datei deiner Discogs-Sammlung ab. Danach fragt die Seite bei jeder Platte nach dem Zustand. Cover, Trackliste, Genre und Land werden automatisch geladen. Den Preis ermittelt das Preis-Tool auf deinem PC: Durchschnitt der ersten 10 Marktplatz-Angebote aus Deutschland (fehlende werden mit anderen Ländern aufgefüllt) – ohne Rabatt.</p>
+          <p class="muted small" style="margin-top:0">Lege die CSV-Datei deiner Discogs-Sammlung ab. Danach fragt die Seite bei jeder Platte nach dem Zustand. Cover, Trackliste, Genre, Land und Preis werden dann automatisch ermittelt – ohne Rabatt.</p>
           <div class="form-grid" style="margin-bottom:14px">
+            <label class="field" style="grid-column: span 2">Preisquelle
+              <select class="select" id="price-source">
+                <option value="api">Discogs-Preisvorschlag für den Zustand (automatisch, empfohlen)</option>
+                <option value="market">Ø der ersten 10 Angebote aus Deutschland (Preis-Tool auf dem PC)</option>
+              </select>
+            </label>
             <label class="field">Mindestpreis (€)
               <input class="input" type="number" id="min-price" value="0" min="0" step="0.5">
             </label>
@@ -201,7 +209,7 @@
           <div class="toolbar" style="margin:4px 0 0">
             <button class="btn" id="e-start">Anhalten</button>
             <button class="btn hidden" id="e-retry">Fehlgeschlagene erneut versuchen</button>
-            <span class="small muted">Lass dieses Fenster geöffnet, bis Cover &amp; Daten fertig sind.</span>
+            <span class="small muted">Lass dieses Fenster geöffnet, bis alles fertig ist (ca. 20 Platten pro Minute).</span>
           </div>
           <div id="e-warn" class="small" style="margin-top:8px;color:var(--warn)"></div>
           <div class="pc-box hidden" id="pc-box">
@@ -219,7 +227,7 @@
         </table></div>
 
         <div class="table-wrap hidden" id="e-table-wrap"><table class="t" id="e-table">
-          <thead><tr><th></th><th>Platte</th><th class="hide-m">Zustand</th><th class="hide-m">Hinweis</th></tr></thead>
+          <thead><tr><th></th><th>Platte</th><th class="hide-m">Zustand</th><th class="hide-m">Preisvorschlag</th><th class="hide-m">Günstigstes Angebot</th><th>Verkaufspreis</th><th class="hide-m">Hinweis</th></tr></thead>
           <tbody></tbody>
         </table></div>
 

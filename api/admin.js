@@ -28,6 +28,7 @@ export default async function handler(req, res) {
     if (action === 'market-recent') return await marketRecent(res);
     if (post && action === 'condition') return await setCondition(req, res);
     if (post && action === 'market-price') return await marketPrice(req, res);
+    if (post && action === 'settings') return send(res, 200, await saveSettings(cleanSettings(req.body)));
     if (post && action === 'import') return await importRows(req, res);
     if (post && action === 'update') return await update(req, res);
     if (post && action === 'reprice') return await reprice(req, res);
@@ -58,6 +59,8 @@ async function login(req, res) {
 
 async function stats(res) {
   const sql = db();
+  const settings = await loadSettings();
+  const api = settings.priceSource !== 'market';
   const [byStatus, ord, covers, enrich] = await Promise.all([
     sql.query(`SELECT status, count(*)::int AS n, coalesce(sum(price), 0)::float AS value FROM records GROUP BY status`),
     sql.query(`SELECT count(*)::int AS n, coalesce(sum(total), 0)::float AS revenue FROM orders WHERE status = 'completed'`),
@@ -66,6 +69,7 @@ async function stats(res) {
       count(*) FILTER (WHERE enrich_status = 'novinyl')::int AS novinyl,
       count(*) FILTER (WHERE enrich_status = 'needcond')::int AS needcond,
       count(*) FILTER (WHERE enrich_status = 'market')::int AS market,
+      count(*) FILTER (WHERE enrich_status = 'pending')::int AS pending_only,
       max(updated_at) FILTER (WHERE enrich_status = 'done' AND market_offers IS NOT NULL) AS last_market,
       count(*) FILTER (WHERE enrich_status = 'done' AND enrich_note ILIKE '%Preisvorschläge%' AND status NOT IN ('sold', 'reserved'))::int AS nosugg FROM records`),
   ]);
@@ -80,12 +84,15 @@ async function stats(res) {
     orders: ord[0].n,
     revenue: ord[0].revenue,
     missingCovers: covers[0].n,
-    enrichPending: enrich[0].pending,
+    // Bei Preisquelle „API“ werden auch Platten aus der Preis-Tool-Warteschlange direkt bepreist
+    enrichPending: api ? enrich[0].pending + enrich[0].market : enrich[0].pending,
     enrichErrors: enrich[0].errors,
     enrichNoVinyl: enrich[0].novinyl,
     enrichNoSugg: enrich[0].nosugg,
     needCondition: enrich[0].needcond,
-    marketPending: enrich[0].market,
+    marketPending: api ? 0 : enrich[0].market,
+    priceSource: settings.priceSource,
+    minPrice: settings.minPrice,
     lastMarket: enrich[0].last_market,
     coverToken: Boolean(process.env.DISCOGS_TOKEN),
     blob: blobConfigured(),
@@ -154,7 +161,7 @@ async function importRows(req, res) {
   const auto = req.body?.auto === true;
   const batch = clean(req.body?.batch, 120);
   const location = clean(req.body?.location, 120);
-  if (auto) await saveSettings({ discount, minPrice });
+  if (auto) await saveSettings({ discount, minPrice, ...cleanSettings({ priceSource: req.body?.priceSource }) });
 
   const cols = { key: [], rel: [], lst: [], artist: [], title: [], label: [], catno: [], format: [], released: [], genre: [],
     media: [], sleeve: [], descr: [], notes: [], avg: [], price: [], status: [], cover: [], batch: [], tracks: [], country: [] };
@@ -295,20 +302,23 @@ async function uploadCover(req, res) {
 // Eine Platte aus der Warteschlange ergänzen (der Admin-Browser ruft das Platte für Platte auf)
 async function enrichStep(req, res) {
   const sql = db();
-  const next = await sql.query(`SELECT id, release_id, artist, title, catno, format, media_condition FROM records WHERE enrich_status = 'pending' ORDER BY id LIMIT 1`);
-  const count = async () => (await sql.query(`SELECT count(*)::int AS n FROM records WHERE enrich_status = 'pending'`))[0].n;
+  const settings = await loadSettings();
+  const states = settings.priceSource === 'market' ? ['pending'] : ['pending', 'market'];
+  const next = await sql.query(`SELECT id, release_id, artist, title, catno, format, media_condition FROM records
+    WHERE enrich_status = ANY($1::text[]) ORDER BY (enrich_status = 'pending') DESC, id LIMIT 1`, [states]);
+  const count = async () => (await sql.query(`SELECT count(*)::int AS n FROM records WHERE enrich_status = ANY($1::text[])`, [states]))[0].n;
   if (!next.length) return send(res, 200, { done: true, remaining: 0 });
   const rec = next[0];
   let result;
   try {
-    result = await enrichRecord(rec);
+    result = await enrichRecord(rec, settings);
   } catch (e) {
     if (e.rateLimit) return send(res, 200, { wait: 60, remaining: await count(), rate: 0 });
     // Als Fehler markieren, damit die Warteschlange nicht an einer Platte hängen bleibt („Erneut versuchen“ möglich)
     await sql.query(`UPDATE records SET enrich_status = 'error', enrich_note = $2 WHERE id = $1`, [rec.id, e.message.slice(0, 200)]);
     result = { notes: [e.message], error: true };
   }
-  send(res, 200, { record: { id: rec.id, artist: rec.artist, title: rec.title, ...result }, remaining: await count(), rate: rateRemaining });
+  send(res, 200, { record: { id: rec.id, artist: rec.artist, title: rec.title, media_condition: rec.media_condition, ...result }, remaining: await count(), rate: rateRemaining });
 }
 
 async function enrichRetry(res) {
@@ -326,7 +336,14 @@ async function enrichNoSuggestions(res) {
 // ---------- Einstellungen (Mindestpreis) – das Preis-Tool rechnet damit. Rabatt gibt es nicht mehr. ----------
 async function loadSettings() {
   const row = (await db().query(`SELECT value FROM app_settings WHERE key = 'pricing'`))[0];
-  return { minPrice: 0, ...(row?.value || {}), discount: 0 };
+  return { minPrice: 0, priceSource: 'api', ...(row?.value || {}), discount: 0 };
+}
+// Nur erlaubte Werte übernehmen
+function cleanSettings(b = {}) {
+  const out = {};
+  if (['api', 'market'].includes(b.priceSource)) out.priceSource = b.priceSource;
+  if (b.minPrice != null && Number.isFinite(Number(b.minPrice))) out.minPrice = Math.max(0, Number(b.minPrice));
+  return out;
 }
 async function saveSettings(patch) {
   const next = { ...(await loadSettings()), ...patch };
@@ -373,6 +390,11 @@ async function setCondition(req, res) {
 // Nächste Platte, deren Preis aus den Marktplatz-Angeboten ermittelt werden soll
 async function marketNext(req, res) {
   const sql = db();
+  const settings = await loadSettings();
+  if (settings.priceSource !== 'market') {
+    // Preise kommen über die Discogs-API direkt im Shop – das Preis-Tool hat nichts zu tun
+    return send(res, 200, { record: null, remaining: 0, waiting: 0, source: 'api', settings });
+  }
   const skip = intIds(req.query.skip, 50);
   const pick = () => sql.query(`SELECT id, release_id, artist, title, label, catno, format, media_condition
     FROM records WHERE enrich_status = 'market' AND NOT (id = ANY($1::int[])) ORDER BY id LIMIT 1`, [skip]);
@@ -384,7 +406,7 @@ async function marketNext(req, res) {
     const pending = (await sql.query(`SELECT id, release_id, artist, title, catno, format, media_condition FROM records WHERE enrich_status = 'pending' ORDER BY id LIMIT 1`))[0];
     if (pending) {
       enriched = true;
-      try { await enrichRecord(pending); } catch (e) {
+      try { await enrichRecord(pending, settings); } catch (e) {
         if (!e.rateLimit) await sql.query(`UPDATE records SET enrich_status = 'error', enrich_note = $2 WHERE id = $1`, [pending.id, e.message.slice(0, 200)]);
       }
       next = await pick();
@@ -392,7 +414,7 @@ async function marketNext(req, res) {
   }
   const remaining = (await sql.query(`SELECT count(*)::int AS n FROM records WHERE enrich_status = 'market'`))[0].n;
   const waiting = (await sql.query(`SELECT count(*)::int AS n FROM records WHERE enrich_status IN ('needcond', 'pending')`))[0].n;
-  send(res, 200, { record: next[0] || null, remaining, waiting, enriched, settings: await loadSettings() });
+  send(res, 200, { record: next[0] || null, remaining, waiting, enriched, settings });
 }
 
 async function marketRecent(res) {

@@ -172,13 +172,35 @@ document.addEventListener('DOMContentLoaded', async () => {
   function settingsNow() {
     return {
       discount: 0,
+      priceSource: $('price-source').value,
       minPrice: Math.max(0, Number(String($('min-price').value).replace(',', '.')) || 0),
     };
   }
   function saveSettings() {
     try { localStorage.setItem('hr_enrich_v2', JSON.stringify(settingsNow())); } catch { /* ignorieren */ }
   }
-  $('min-price').addEventListener('change', saveSettings);
+  $('min-price').addEventListener('change', () => { saveSettings(); pushSettings(); });
+  // Preisquelle und Mindestpreis gelten auf dem Server (auch für das Preis-Tool)
+  async function pushSettings() {
+    const s = settingsNow();
+    try { await call('/api/admin?action=settings', { body: { priceSource: s.priceSource, minPrice: s.minPrice } }); } catch (e) { toast(e.message); }
+    applySource(s.priceSource);
+    enrichStats().then((st) => { if (st.enrichPending && !en.running && !en.paused && !importing) startEnrich(); }).catch(() => {});
+  }
+  $('price-source').addEventListener('change', () => {
+    pushSettings();
+    toast($('price-source').value === 'api' ? 'Preise kommen jetzt direkt über die Discogs-API' : 'Preise kommen jetzt vom Preis-Tool auf dem PC');
+  });
+  let priceSource = 'api';
+  function applySource(src) {
+    priceSource = src;
+    if ($('price-source').value !== src) $('price-source').value = src;
+    const api = src !== 'market';
+    $('step-market').classList.toggle('hidden', api);
+    document.querySelector('#step-enrich strong').textContent = api ? 'Cover, Daten & Preis' : 'Cover & Daten';
+    document.querySelector('.steps').classList.toggle('four', !api);
+    document.querySelector('.steps').classList.toggle('three', api);
+  }
 
   async function readFile(file) {
     if (!file) return;
@@ -288,7 +310,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       let ok = false;
       for (let attempt = 1; attempt <= 3 && !ok; attempt++) {
         try {
-          const r = await call('/api/admin?action=import', { body: { rows: chunk, discount: s.discount, minPrice: s.minPrice, batch, location, auto: true } });
+          const r = await call('/api/admin?action=import', { body: { rows: chunk, discount: s.discount, minPrice: s.minPrice, priceSource: s.priceSource, batch, location, auto: true } });
           tot.inserted += r.inserted; tot.updated += r.updated; tot.skipped += r.skipped;
           ok = true;
         } catch (e) {
@@ -339,8 +361,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!s) return;
     $('e-kpis').innerHTML = [
       ['Zustand fehlt', num(s.needCondition), s.needCondition ? 'bitte oben angeben' : 'alles angegeben'],
-      ['Cover & Daten offen', num(s.enrichPending), s.enrichPending ? 'wird geladen' : 'erledigt'],
-      ['Warten auf Preis', num(s.marketPending), s.marketPending ? 'Preis-Tool auf dem PC' : 'alle bepreist'],
+      [priceSource === 'market' ? 'Cover & Daten offen' : 'Preis & Cover offen', num(s.enrichPending), s.enrichPending ? `ca. ${num(Math.max(1, Math.ceil(s.enrichPending / 20)))} Min.` : 'erledigt'],
+      ...(priceSource === 'market' ? [['Warten auf Preis', num(s.marketPending), s.marketPending ? 'Preis-Tool auf dem PC' : 'alle bepreist']] : []),
       ['Fehlgeschlagen', num(s.enrichErrors), s.enrichErrors ? 'erneut versuchen möglich' : '–'],
       ['Kein Vinyl', num(s.enrichNoVinyl), s.enrichNoVinyl ? 'CDs usw. – nicht bepreist' : '–'],
       ['Im Shop', num(s.available), 'Platten online'],
@@ -350,6 +372,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const s = await call('/api/admin?action=stats');
     lastStats = s;
     setBadge(s.enrichPending + s.needCondition);
+    if (s.priceSource) applySource(s.priceSource);
     renderKpis();
     renderMarket(s);
     $('e-retry').classList.toggle('hidden', !s.enrichErrors);
@@ -375,12 +398,21 @@ document.addEventListener('DOMContentLoaded', async () => {
   };
 
   function renderEnrichRows() {
-    $('e-table').querySelector('tbody').innerHTML = en.rows.slice(0, 200).map((r) => `<tr>
+    const fmt = (v) => (v == null ? '–' : eur(v));
+    const label = (r) => (r.error ? ['failed', 'Fehler'] : r.novinyl ? ['draft', 'Kein Vinyl'] : r.market ? ['reserved', 'wartet auf Preis-Tool']
+      : r.status === 'available' ? ['available', 'Im Shop'] : r.status === 'sold' ? ['sold', 'Verkauft'] : ['draft', 'Entwurf']);
+    $('e-table').querySelector('tbody').innerHTML = en.rows.slice(0, 200).map((r) => {
+      const [cls, txt] = label(r);
+      return `<tr>
       <td><div class="thumb"><img src="${esc(r.cover_url || '/assets/vinyl.svg')}" alt="" loading="lazy" onerror="this.onerror=null;this.src='/assets/vinyl.svg'"></div></td>
-      <td><strong>${esc(r.artist)}</strong> – ${esc(r.title)}<div class="small muted">#${r.id} · <span class="st ${r.error ? 'failed' : r.novinyl ? 'draft' : 'reserved'}">${r.error ? 'Fehler' : r.novinyl ? 'Kein Vinyl' : 'wartet auf Preis'}</span></div></td>
-      <td class="hide-m small">${esc(r.media_condition || '')}</td>
+      <td><strong>${esc(r.artist)}</strong> – ${esc(r.title)}<div class="small muted">#${r.id} · <span class="st ${cls}">${txt}</span></div></td>
+      <td class="hide-m small">${esc(r.cond || condKey(r.media_condition) || '')}</td>
+      <td class="num hide-m">${fmt(r.condPrice)}</td>
+      <td class="num hide-m">${fmt(r.lowest)}${r.forSale ? ` <span class="muted small">(${r.forSale}×)</span>` : ''}</td>
+      <td class="sale">${r.price != null && !r.market ? eur(r.price) : '–'}</td>
       <td class="hide-m e-note">${esc((r.notes || []).join(' · '))}</td>
-    </tr>`).join('');
+    </tr>`;
+    }).join('');
   }
 
   async function startEnrich() {
@@ -406,7 +438,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       let r;
       try {
         r = await call('/api/admin?action=enrich', { body: { discount: s.discount, minPrice: s.minPrice } });
-        if (r.record) r.record.media_condition = cond.byId.get(r.record.id) || '';
       } catch (e) {
         if (e.status === 401) break;
         $('e-status').textContent = `Fehler: ${e.message} – neuer Versuch in 20 Sekunden`;
@@ -447,7 +478,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       $('e-prog').style.background = 'var(--ok)';
       $('e-status').textContent = `Fertig – ${num(en.done)} Platten ergänzt.`;
       $('e-start').classList.add('hidden');
-      if (!cond.items.length) toast('Cover & Daten geladen – jetzt Preise mit dem Preis-Tool ermitteln');
+      if (!cond.items.length) toast(priceSource === 'market' ? 'Cover & Daten geladen – jetzt Preise mit dem Preis-Tool ermitteln' : 'Fertig – alle Platten haben Preis & Cover');
     } else {
       $('e-start').textContent = 'Fortsetzen';
       $('e-status').textContent = 'Angehalten – mit „Fortsetzen“ geht es weiter.';
@@ -596,7 +627,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   let marketTimer = null;
   function renderMarket(s) {
     const n = s.marketPending || 0;
-    $('pc-box').classList.toggle('hidden', !n && !s.lastMarket);
+    $('pc-box').classList.toggle('hidden', priceSource !== 'market' || (!n && !s.lastMarket));
     $('pc-n').textContent = num(n);
     const last = s.lastMarket ? new Date(s.lastMarket) : null;
     const active = last && Date.now() - last.getTime() < 120000;

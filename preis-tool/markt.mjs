@@ -339,6 +339,12 @@ export function createMarket({ dataDir, outRoot, getSettings, saveSettings, rate
       }
       state.remaining = next.remaining;
       state.waiting = next.waiting;
+      if (next.source === 'api') {
+        await closeBrowser();
+        state.note = 'Im Admin-Bereich ist als Preisquelle „Discogs-Preisvorschlag“ eingestellt – die Preise kommen direkt über die Discogs-API, das Preis-Tool wird nicht gebraucht.';
+        for (let i = 0; i < 60 && token === runToken; i++) await sleep(1000);
+        continue;
+      }
       if (!next.record && next.enriched) {
         // Der Shop hat gerade Cover & Daten einer Platte geladen – gleich nochmal fragen
         state.note = 'Shop lädt Cover & Daten der nächsten Platte …';
