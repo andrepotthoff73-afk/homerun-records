@@ -135,7 +135,11 @@ export function createMarket({ dataDir, outRoot, getSettings, saveSettings, rate
   // Seite laden; bei der „Bist du ein Mensch?“-Prüfung das Fenster zeigen und warten
   async function load(url, token) {
     await openBrowser();
-    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
+    const resp = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
+    // Discogs bremst: „Too many requests“ → Aufrufer wartet und versucht es später erneut
+    const tooMany = async () => resp?.status() === 429
+      || /too many requests|retry later|zu viele anfragen/i.test(await page.evaluate(() => (document.body?.innerText || '').slice(0, 300)).catch(() => ''));
+    if (await tooMany()) { const e = new Error('Discogs meldet zu viele Abrufe'); e.rateLimit = true; throw e; }
     const deadline = Date.now() + 5 * 60000;
     let shown = false;
     for (;;) {
@@ -298,7 +302,7 @@ export function createMarket({ dataDir, outRoot, getSettings, saveSettings, rate
     // 2. Weniger als 10 → mit Angeboten aus anderen Ländern auffüllen
     let all = null;
     if (used.length < WANT) {
-      await sleep(2500 + Math.random() * 2000);
+      await sleep(4000 + Math.random() * 3000);
       await load(sellUrl(releaseId, false), token);
       all = await readOffers();
       take(all.offers, false);
@@ -353,6 +357,15 @@ export function createMarket({ dataDir, outRoot, getSettings, saveSettings, rate
         result = await priceRecord(rec, token);
       } catch (e) {
         if (token !== runToken) break;
+        if (e.rateLimit) {
+          // Discogs bremst → 3 Minuten Pause, dann dieselbe Platte erneut
+          await closeBrowser();
+          for (let w = 180; w > 0 && token === runToken; w--) {
+            state.note = `Discogs meldet zu viele Abrufe – Pause, weiter in ${Math.ceil(w / 60)} Min.`;
+            await sleep(1000);
+          }
+          continue;
+        }
         // Technisches Problem (Browser, Internet) → diese Platte später nochmal
         skip.add(rec.id);
         state.results.unshift({ ...rec, error: e.message.split('\n')[0], at: Date.now() });
@@ -374,8 +387,8 @@ export function createMarket({ dataDir, outRoot, getSettings, saveSettings, rate
       }
       state.results.unshift({ ...rec, ...result, at: Date.now(), ms: Date.now() - t0 });
       state.results.length = Math.min(state.results.length, 300);
-      // Schonend abrufen: 5–8 Sekunden Pause zwischen zwei Platten
-      const pause = 5000 + Math.random() * 3000;
+      // Schonend abrufen: 8–12 Sekunden Pause zwischen zwei Platten
+      const pause = 8000 + Math.random() * 4000;
       state.note = 'kurze Pause …';
       for (let w = 0; w < pause && token === runToken; w += 500) await sleep(500);
     }
