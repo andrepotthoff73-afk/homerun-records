@@ -144,12 +144,19 @@ async function storeCover(id, data) {
 }
 
 async function searchRelease(rec) {
-  // Nur Vinyl-Veröffentlichungen als Treffer zulassen
-  const qs = new URLSearchParams({ type: 'release', format: 'Vinyl', artist: rec.artist, release_title: rec.title });
-  if (rec.catno) qs.set('catno', String(rec.catno).split(',')[0].trim());
-  let r = await dget(`/database/search?${qs}`);
-  if (!(r.data.results || []).length && rec.catno) { qs.delete('catno'); r = await dget(`/database/search?${qs}`); }
-  return r.data.results?.[0]?.id || null;
+  // Nur Vinyl-Veröffentlichungen als Treffer zulassen. Reihenfolge: genau → Katalognummer + Künstler → Künstler + Titel
+  const catno = rec.catno ? String(rec.catno).split(',')[0].trim() : '';
+  const tries = [];
+  if (catno) tries.push({ artist: rec.artist, release_title: rec.title, catno }, { artist: rec.artist, catno });
+  tries.push({ artist: rec.artist, release_title: rec.title });
+  for (const t of tries) {
+    const qs = new URLSearchParams({ type: 'release', format: 'Vinyl' });
+    for (const [k, v] of Object.entries(t)) if (v) qs.set(k, v);
+    const r = await dget(`/database/search?${qs}`);
+    const hit = (r.data.results || [])[0];
+    if (hit?.id) return hit.id;
+  }
+  return null;
 }
 
 // Eine Platte aus der Warteschlange ergänzen: Format prüfen, Cover, Tracks, Genre, Land.

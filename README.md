@@ -116,7 +116,7 @@ beispiel-import.csv        Beispieldatei zum Testen des Imports
 
 ### So wird der Preis berechnet
 - Das Preis-Tool öffnet für jede Platte die Discogs-Verkaufsseite in **Microsoft Edge** auf deinem PC:
-  über die **Release-ID** (`discogs.com/sell/release/…`), wenn keine bekannt ist über die **Katalognummer** (`discogs.com/sell/list?q=…`, nur Vinyl).
+  über die **Release-ID** (`discogs.com/sell/release/…?ships_from=Germany`). Ist keine bekannt, sucht es auf dem Marktplatz nach Künstler + Titel und nimmt die Pressung mit der passenden **Katalognummer**.
 - Es nimmt die **ersten 10 Angebote von Verkäufern aus Deutschland** – in der Reihenfolge, in der Discogs sie anzeigt, egal in welchem Zustand.
 - Gibt es weniger als 10, wird mit Angeboten **aus anderen Ländern** aufgefüllt. Gibt es insgesamt weniger als 10, wird durch die tatsächliche Anzahl geteilt.
 - **Ø = Summe ÷ Anzahl** (Fremdwährungen mit dem EZB-Tageskurs in Euro), **Verkaufspreis = Ø** (kein Rabatt), mindestens der Mindestpreis.

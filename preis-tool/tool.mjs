@@ -438,7 +438,7 @@ http.createServer(async (req, res) => {
     if (u.pathname === '/api/market/stop') { await market.stop(); return send(res, 200, publicState()); }
     if (u.pathname === '/api/market/logout') { await market.logout(); return send(res, 200, publicState()); }
     if (u.pathname === '/api/market/test') {
-      const r = await market.test({ id: 0, release_id: String(body.release_id || '').replace(/\D/g, ''), catno: String(body.catno || '') });
+      const r = await market.test({ id: 0, release_id: String(body.release_id || '').replace(/\D/g, ''), catno: String(body.catno || ''), artist: String(body.artist || ''), title: String(body.title || '') });
       return send(res, 200, r);
     }
     if (u.pathname === '/api/open') { exec(`explorer "${OUT_ROOT}"`); return send(res, 200, { ok: true }); }

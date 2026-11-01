@@ -58,7 +58,8 @@ export function createMarket({ dataDir, outRoot, getSettings, saveSettings, rate
   // Edge wird ganz normal als eigenes Programm gestartet (wie per Doppelklick) und das Tool verbindet
   // sich erst danach. So fehlen die Automatik-Kennzeichen, an denen Cloudflare ferngesteuerte Browser erkennt.
   let proc = null;
-  const PORT = 9333 + Math.floor(Math.random() * 400);
+  const PORT = Number(process.env.HR_BROWSER_PORT) || 9333;
+  const cdpUp = () => fetch(`http://127.0.0.1:${PORT}/json/version`).then((r) => r.ok).catch(() => false);
   function browserPath() {
     if (process.env.HR_BROWSER_PATH) return process.env.HR_BROWSER_PATH;
     const pf = [process.env['ProgramFiles(x86)'], process.env.ProgramFiles, process.env.LOCALAPPDATA].filter(Boolean);
@@ -79,6 +80,16 @@ export function createMarket({ dataDir, outRoot, getSettings, saveSettings, rate
     try { ({ chromium } = await import('playwright-core')); } catch {
       throw new Error('Browser-Steuerung fehlt. Bitte das Preis-Tool schließen und neu starten (es richtet sich dann selbst ein).');
     }
+    if (!browserObj && await cdpUp()) {
+      // Edge vom letzten Lauf ist noch offen → wiederverwenden
+      try {
+        browserObj = await chromium.connectOverCDP(`http://127.0.0.1:${PORT}`);
+        browserObj.on('disconnected', () => { browserObj = null; page = null; });
+      } catch {
+        browserObj = null;
+        for (let i = 0; i < 20 && await cdpUp(); i++) await sleep(500); // wird gerade geschlossen
+      }
+    }
     if (!browserObj) {
       const exe = browserPath();
       if (!exe) throw new Error('Microsoft Edge wurde auf diesem PC nicht gefunden.');
@@ -96,9 +107,9 @@ export function createMarket({ dataDir, outRoot, getSettings, saveSettings, rate
       proc.on('exit', () => { proc = null; browserObj = null; page = null; });
       // Warten, bis Edge bereit ist
       let ok = false;
-      for (let i = 0; i < 60 && !ok; i++) {
+      for (let i = 0; i < 90 && !ok; i++) {
         await sleep(500);
-        ok = await fetch(`http://127.0.0.1:${PORT}/json/version`).then((r) => r.ok).catch(() => false);
+        ok = await cdpUp();
       }
       if (!ok) { try { proc?.kill(); } catch { /* egal */ } throw new Error('Microsoft Edge konnte nicht gestartet werden.'); }
       browserObj = await chromium.connectOverCDP(`http://127.0.0.1:${PORT}`);
@@ -113,8 +124,12 @@ export function createMarket({ dataDir, outRoot, getSettings, saveSettings, rate
     browserObj = null;
     page = null;
     proc = null;
+    // Edge über die Verbindung beenden (ein reines Trennen ließe das Fenster offen)
+    try { const cdp = await b?.newBrowserCDPSession(); await cdp?.send('Browser.close'); } catch { /* schon zu */ }
     try { await b?.close(); } catch { /* schon zu */ }
     try { p?.kill(); } catch { /* schon zu */ }
+    // Warten, bis Edge wirklich zu ist
+    for (let i = 0; i < 20 && await cdpUp(); i++) await sleep(500);
   }
 
   // Seite laden; bei der „Bist du ein Mensch?“-Prüfung das Fenster zeigen und warten
@@ -169,10 +184,25 @@ export function createMarket({ dataDir, outRoot, getSettings, saveSettings, rate
           converted: txt(tr.querySelector('.converted_price')),
           shipsFrom, item, rel, cond,
         };
-      }).filter((o) => o.value || o.text);
+      });
+      // Neue Marktplatz-Ansicht (Karten statt Tabelle)
+      for (const c of document.querySelectorAll('.msr-listing-card')) {
+        const itemA = c.querySelector('a[href*="/item/"]');
+        const relA = c.querySelector('a[href*="/release/"]');
+        offers.push({
+          value: null, currency: null,
+          text: txt(c.querySelector('.msr-listing-card-price')),
+          converted: '',
+          shipsFrom: txt(c.querySelector('.msr-listing-card-ships-from-country')),
+          item: ((itemA && itemA.getAttribute('href')) || '').match(/\/item\/(\d+)/)?.[1] || '',
+          rel: ((relA && relA.getAttribute('href')) || '').match(/\/release\/(\d+)/)?.[1] || '',
+          cond: txt(c.querySelector('.hifi-grade-chip-label')),
+          labels: txt(c.querySelector('.msr-listing-card-labels')),
+        });
+      }
       const body = document.body ? document.body.innerText : '';
       const empty = /no items for sale|keine artikel|nothing for sale|0 items|keine angebote/i.test(body);
-      return { offers, empty, title: document.title };
+      return { offers: offers.filter((o) => o.value || o.text), empty, title: document.title };
     });
   }
 
@@ -201,18 +231,30 @@ export function createMarket({ dataDir, outRoot, getSettings, saveSettings, rate
     return null;
   }
 
-  function sellUrl(rec, germanyOnly) {
+  // Verkaufsseite einer Pressung (Release-ID). Der Länderfilter „ships_from“ wirkt hier zuverlässig.
+  function sellUrl(releaseId, germanyOnly) {
     const qs = new URLSearchParams();
-    let base;
-    if (rec.release_id) base = `${DISCOGS}/sell/release/${rec.release_id}`;
-    else {
-      base = `${DISCOGS}/sell/list`;
-      qs.set('q', String(rec.catno).split(',')[0].trim());
-      qs.set('format', 'Vinyl');
-    }
     if (germanyOnly) qs.set('ships_from', 'Germany');
     qs.set('limit', '50');
-    return `${base}?${qs}`;
+    return `${DISCOGS}/sell/release/${releaseId}?${qs}`;
+  }
+
+  // Ohne Release-ID: auf dem Marktplatz nach Künstler + Titel suchen und die Pressung nehmen,
+  // deren Katalognummer passt (die Marktplatz-Suche selbst kennt keine Katalognummern).
+  const normCat = (c) => String(c || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  async function findRelease(rec, token) {
+    const cat = normCat(String(rec.catno || '').split(',')[0]);
+    if (!cat) return '';
+    const qs = new URLSearchParams({ q: [rec.artist, rec.title].filter(Boolean).join(' '), formatName: 'Vinyl' });
+    await load(`${DISCOGS}/shop/list?${qs}`, token);
+    const { offers } = await readOffers();
+    const counts = {};
+    for (const o of offers) {
+      if (!o.rel) continue;
+      const cats = String(o.labels || '').split(/[,•]/).map(normCat);
+      if (cats.includes(cat) || normCat(o.labels).includes(cat)) counts[o.rel] = (counts[o.rel] || 0) + 1;
+    }
+    return Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0] || '';
   }
 
   function saveDebug(rec, html, why) {
@@ -225,23 +267,31 @@ export function createMarket({ dataDir, outRoot, getSettings, saveSettings, rate
   }
 
   async function priceRecord(rec, token) {
-    if (!rec.release_id && !rec.catno) return { offers: [], error: 'Weder Release-ID noch Katalognummer – Preis bitte von Hand eintragen' };
+    let releaseId = rec.release_id ? String(rec.release_id) : '';
+    if (!releaseId) {
+      if (!rec.catno) return { offers: [], error: 'Weder Release-ID noch Katalognummer – Preis bitte von Hand eintragen' };
+      releaseId = await findRelease(rec, token);
+      if (!releaseId) return { offers: [], error: `Pressung mit Katalognummer „${rec.catno}“ auf dem Marktplatz nicht gefunden – bitte Release-ID prüfen oder Preis von Hand eintragen` };
+      await sleep(2000 + Math.random() * 2000);
+    }
     const used = [];
     const seen = new Set();
+    // onlyGermany: true = nur Verkäufer aus Deutschland, false = alle übrigen zum Auffüllen
     const take = (list, onlyGermany) => {
       for (const o of list) {
         if (used.length >= WANT) break;
         const key = o.item || `${o.value}|${o.text}|${o.shipsFrom}|${o.cond}`;
         if (seen.has(key)) continue;
-        if (onlyGermany === false && GERMANY.test(o.shipsFrom) && !o.item) continue;
+        if (onlyGermany && o.shipsFrom && !GERMANY.test(o.shipsFrom)) continue;
+        if (!onlyGermany && GERMANY.test(o.shipsFrom) && !o.item) continue;
         const eur = toEur(o);
         if (eur == null || eur <= 0) continue;
         seen.add(key);
-        used.push({ eur, country: o.shipsFrom || (onlyGermany ? 'Germany' : ''), condition: o.cond, item: o.item, rel: o.rel });
+        used.push({ eur, country: o.shipsFrom || (onlyGermany ? 'Germany' : ''), condition: o.cond, item: o.item });
       }
     };
     // 1. Nur Verkäufer aus Deutschland
-    const deUrl = sellUrl(rec, true);
+    const deUrl = sellUrl(releaseId, true);
     await load(deUrl, token);
     const de = await readOffers();
     take(de.offers, true);
@@ -249,27 +299,20 @@ export function createMarket({ dataDir, outRoot, getSettings, saveSettings, rate
     let all = null;
     if (used.length < WANT) {
       await sleep(2500 + Math.random() * 2000);
-      await load(sellUrl(rec, false), token);
+      await load(sellUrl(releaseId, false), token);
       all = await readOffers();
       take(all.offers, false);
     }
     if (!used.length) {
-      const nothing = de.empty && (!all || all.empty || !all.offers.length);
-      if (!nothing) {
+      const title = (all || de).title || '';
+      if (!/zu verkaufen|for sale|marktplatz|marketplace/i.test(title)) {
         // Seite sah anders aus als erwartet → zur Fehlersuche speichern
         const f = saveDebug(rec, await page.content().catch(() => ''), 'keine Angebote erkannt');
-        return { offers: [], url: deUrl, technical: true, error: `Angebote auf der Seite nicht erkannt${f ? ` (gespeichert: Ergebnisse/debug/${path.basename(f)})` : ''}` };
+        return { offers: [], url: deUrl, releaseId, technical: true, error: `Angebote auf der Seite nicht erkannt${f ? ` (gespeichert: Ergebnisse/debug/${path.basename(f)})` : ''}` };
       }
-      return { offers: [], url: deUrl, error: 'Keine Angebote auf dem Marktplatz – bleibt Entwurf, Preis bitte von Hand eintragen' };
+      return { offers: [], url: deUrl, releaseId, error: 'Keine Angebote auf dem Marktplatz – bleibt Entwurf, Preis bitte von Hand eintragen' };
     }
-    // Release-ID merken, wenn über die Katalognummer gesucht wurde (häufigste ID unter den Angeboten)
-    let releaseId = rec.release_id ? String(rec.release_id) : '';
-    if (!releaseId) {
-      const counts = {};
-      for (const o of used) if (o.rel) counts[o.rel] = (counts[o.rel] || 0) + 1;
-      releaseId = Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0] || '';
-    }
-    return { offers: used.map(({ rel, ...o }) => o), url: deUrl, releaseId };
+    return { offers: used, url: deUrl, releaseId };
   }
 
   // ---------- Ablauf ----------
@@ -369,6 +412,7 @@ export function createMarket({ dataDir, outRoot, getSettings, saveSettings, rate
     async logout() { saveSettings({ shopCookie: '' }); state.needLogin = true; },
     // Für Tests: eine einzelne Platte bepreisen, ohne etwas an den Shop zu melden
     async test(rec) {
+      if (state.state === 'running') throw new Error('Bitte zuerst anhalten.');
       const token = runToken;
       await loadRates();
       try { return await priceRecord(rec, token); } finally { if (state.state !== 'running') await closeBrowser(); }
