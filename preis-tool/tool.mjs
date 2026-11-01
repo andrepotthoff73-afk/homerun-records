@@ -7,6 +7,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { exec } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { createMarket } from './markt.mjs';
 
 const PORT = 4410;
 const UA = 'HomerunRecordsPreisTool/1.0';
@@ -22,7 +23,8 @@ const PRICE_MAX_AGE = 30 * 864e5; // Preise nach 30 Tagen neu abfragen
 for (const d of [DATA_DIR, OUT_ROOT, COVER_DIR]) fs.mkdirSync(d, { recursive: true });
 
 const readJson = (f, d) => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return d; } };
-let settings = { token: '', discount: 10, minPrice: 0, site: '', covers: true, ...readJson(SETTINGS_FILE, {}) };
+let settings = { token: '', discount: 10, minPrice: 0, site: '', covers: true, shopCookie: '', marketVisible: false, ...readJson(SETTINGS_FILE, {}) };
+const writeSettings = () => fs.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2));
 const cache = readJson(CACHE_FILE, {});
 let cacheTimer;
 const saveCache = () => { clearTimeout(cacheTimer); cacheTimer = setTimeout(() => fs.writeFileSync(CACHE_FILE, JSON.stringify(cache)), 500); };
@@ -95,6 +97,16 @@ async function loadRates() {
     for (const m of t.matchAll(/currency=['"](\w{3})['"]\s+rate=['"]([\d.]+)['"]/g)) rates[m[1]] = Number(m[2]);
   } catch { /* nur EUR */ }
 }
+// Marktpreise für den Shop (Discogs-Marktplatz über Microsoft Edge)
+const market = createMarket({
+  dataDir: DATA_DIR,
+  outRoot: OUT_ROOT,
+  getSettings: () => settings,
+  saveSettings: (patch) => { Object.assign(settings, patch); writeSettings(); },
+  rates: () => rates,
+  loadRates,
+});
+
 const toEUR = (p) => (p && p.value != null && rates[p.currency || 'EUR'] ? p.value / rates[p.currency || 'EUR'] : null);
 
 // Releasedaten (Cover, Tracks, Genre, Land) + Preise für eine Release-ID
@@ -356,7 +368,9 @@ function send(res, status, data, type = 'application/json; charset=utf-8') {
 
 function publicState() {
   return {
-    settings: { hasToken: Boolean(settings.token), discount: settings.discount, minPrice: settings.minPrice, site: settings.site, covers: settings.covers },
+    settings: { hasToken: Boolean(settings.token), discount: settings.discount, minPrice: settings.minPrice, site: settings.site, covers: settings.covers,
+      shopLoggedIn: Boolean(settings.shopCookie), marketVisible: Boolean(settings.marketVisible) },
+    market: { ...market.state, results: market.state.results.slice(0, 100) },
     sharp: Boolean(sharp),
     waitNote,
     job: job && {
@@ -397,7 +411,8 @@ http.createServer(async (req, res) => {
       if (body.minPrice != null) settings.minPrice = Math.max(0, Number(String(body.minPrice).replace(',', '.')) || 0);
       if (typeof body.site === 'string') settings.site = body.site.trim().replace(/\/+$/, '');
       if (typeof body.covers === 'boolean') settings.covers = body.covers;
-      fs.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2));
+      if (typeof body.marketVisible === 'boolean') settings.marketVisible = body.marketVisible;
+      writeSettings();
       if (body.test && settings.token) {
         const me = await discogs('/oauth/identity');
         return send(res, me.error ? 400 : 200, me.error ? { error: 'Token ungültig' } : { user: me.username });
@@ -414,6 +429,17 @@ http.createServer(async (req, res) => {
     if (u.pathname === '/api/resume') {
       if (job && job.state === 'stopped') { job.state = 'running'; run(job); }
       return send(res, 200, publicState());
+    }
+    if (u.pathname === '/api/market/start') {
+      if (typeof body.site === 'string' && body.site.trim()) { settings.site = body.site.trim().replace(/\/+$/, ''); writeSettings(); }
+      await market.start(String(body.password || ''));
+      return send(res, 200, publicState());
+    }
+    if (u.pathname === '/api/market/stop') { await market.stop(); return send(res, 200, publicState()); }
+    if (u.pathname === '/api/market/logout') { await market.logout(); return send(res, 200, publicState()); }
+    if (u.pathname === '/api/market/test') {
+      const r = await market.test({ id: 0, release_id: String(body.release_id || '').replace(/\D/g, ''), catno: String(body.catno || '') });
+      return send(res, 200, r);
     }
     if (u.pathname === '/api/open') { exec(`explorer "${OUT_ROOT}"`); return send(res, 200, { ok: true }); }
     if (u.pathname === '/api/shop') {

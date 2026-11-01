@@ -50,6 +50,42 @@
 <header><strong style="letter-spacing:.02em">HOMERUN <b>RECORDS</b></strong><span class="tag">Preis-Tool</span></header>
 <main>
 
+  <section class="card" id="mk" style="border:2px solid var(--acc)">
+    <h2>Marktpreise für den Shop</h2>
+    <p class="small muted" style="margin-top:0">Nimmt die Platten, die im Admin-Bereich deiner Website auf ihren Preis warten. Für jede Platte wird die Discogs-Verkaufsseite in Microsoft Edge geöffnet (über die Release-ID, sonst über die Katalognummer).
+      Die <strong>ersten 10 Angebote von Verkäufern aus Deutschland</strong> werden addiert und durch 10 geteilt. Gibt es weniger als 10, wird mit Angeboten aus anderen Ländern aufgefüllt.
+      Vom Durchschnitt zieht der Shop deinen Rabatt ab (wie beim CSV-Import eingestellt). Der Preis wird sofort eingetragen und die Platte geht online.</p>
+    <div class="grid" style="margin-bottom:12px">
+      <label class="f">Adresse deiner Website
+        <input type="url" id="mk-site" placeholder="https://homerun-records.vercel.app">
+      </label>
+      <label class="f" id="mk-pw-wrap">Admin-Passwort der Website
+        <input type="password" id="mk-pw" placeholder="nur beim ersten Mal nötig" autocomplete="current-password">
+      </label>
+    </div>
+    <div class="row">
+      <button class="btn primary" id="mk-start">Start</button>
+      <button class="btn" id="mk-stop" hidden>Anhalten</button>
+      <label class="small"><input type="checkbox" id="mk-visible"> Edge-Fenster sichtbar anzeigen</label>
+      <button class="btn" id="mk-logout" style="margin-left:auto" hidden>Vom Shop abmelden</button>
+    </div>
+    <div id="mk-msg" style="margin-top:12px"></div>
+    <div class="stats" id="mk-stats" hidden>
+      <div><b id="mk-done">0</b><span>bepreist</span></div>
+      <div><b id="mk-rem">–</b><span>warten auf Preis</span></div>
+      <div><b id="mk-wait">–</b><span>im Shop in Bearbeitung</span></div>
+    </div>
+    <div class="tw" id="mk-tw" hidden><table>
+      <thead><tr><th>Platte</th><th>Angebote</th><th>Ø (Summe ÷ Anzahl)</th><th>Verkaufspreis</th><th>Hinweis</th></tr></thead>
+      <tbody id="mk-rows"></tbody>
+    </table></div>
+    <p class="small muted" style="margin:10px 0 0">Tempo: etwa eine Platte alle 10–15 Sekunden, damit Discogs nicht blockiert. Der PC muss dabei laufen, das Edge-Fenster bleibt minimiert. Zeigt Discogs eine Prüfung („Bist du ein Mensch?“), öffnet sich das Fenster: einmal bestätigen, dann geht es weiter.</p>
+  </section>
+
+  <details class="card">
+    <summary style="cursor:pointer"><strong>Alternative: Preisvorschläge über die Discogs-API für eine CSV-Liste</strong> <span class="small muted">(bisheriges Verfahren)</span></summary>
+    <div style="display:grid;gap:18px;margin-top:14px">
+
   <section class="card">
     <h2>1. Einstellungen</h2>
     <div class="grid">
@@ -127,6 +163,8 @@
     <div id="shop-msg" style="margin-top:12px"></div>
   </section>
 
+    </div>
+  </details>
 </main>
 <script>
 const $ = (id) => document.getElementById(id);
@@ -141,8 +179,41 @@ async function post(p, body) {
 let file = null;
 let first = true;
 
+function renderMarket(s) {
+  const m = s.market;
+  if (first) { $('mk-site').value = s.settings.site || ''; $('mk-visible').checked = s.settings.marketVisible; }
+  const running = m.state === 'running';
+  $('mk-start').hidden = running;
+  $('mk-stop').hidden = !running;
+  $('mk-pw-wrap').hidden = s.settings.shopLoggedIn && !m.needLogin;
+  $('mk-logout').hidden = !s.settings.shopLoggedIn;
+  $('mk-stats').hidden = !running && !m.results.length;
+  $('mk-done').textContent = m.done;
+  $('mk-rem').textContent = m.remaining ?? '–';
+  $('mk-wait').textContent = m.waiting ?? '–';
+  const msg = [];
+  if (m.error) msg.push(`<div class="note err">${esc(m.error)}</div>`);
+  if (m.challenge) msg.push(`<div class="note warn"><strong>Bitte im Edge-Fenster die Prüfung bestätigen.</strong></div>`);
+  else if (running && m.note) msg.push(`<div class="note ok">${esc(m.note)}</div>`);
+  else if (!running && m.note) msg.push(`<div class="note warn">${esc(m.note)}</div>`);
+  $('mk-msg').innerHTML = msg.join('');
+  $('mk-tw').hidden = !m.results.length;
+  $('mk-rows').innerHTML = m.results.map((r) => {
+    const offers = r.offers || [];
+    const de = offers.filter((o) => /^(germany|deutschland)$/i.test(o.country)).length;
+    const list = offers.map((o) => `${eur(o.eur)}${/^(germany|deutschland)$/i.test(o.country) ? '' : ` (${o.country || '?'})`}`).join(' + ');
+    return `<tr>
+      <td><strong>${esc(r.artist)}</strong> – ${esc(r.title)}<div class="small muted">${esc([r.catno, r.release_id ? `Release ${r.release_id}` : '', r.media_condition].filter(Boolean).join(' · '))}${r.url ? ` · <a href="${esc(r.url)}" target="_blank" rel="noopener">Seite ↗</a>` : ''}</div></td>
+      <td class="small">${offers.length ? `${offers.length}× (${de}× DE)<div class="muted" style="max-width:340px">${esc(list)}</div>` : '–'}</td>
+      <td class="num">${eur(r.avg)}</td><td class="num sale">${eur(r.sale)}</td>
+      <td class="hint">${esc(r.error || r.note || '')}</td>
+    </tr>`;
+  }).join('');
+}
+
 async function refresh() {
   const s = await (await fetch('/api/state')).json();
+  renderMarket(s);
   if (first) {
     $('discount').value = s.settings.discount;
     $('minPrice').value = s.settings.minPrice;
@@ -230,6 +301,20 @@ $('push').onclick = async () => {
   $('pw').value = '';
   refresh();
 };
+
+$('mk-start').onclick = async () => {
+  $('mk-start').disabled = true;
+  try {
+    await post('/api/market/start', { site: $('mk-site').value, password: $('mk-pw').value });
+    $('mk-pw').value = '';
+  } catch (e) { $('mk-msg').innerHTML = `<div class="note err">${esc(e.message)}</div>`; }
+  $('mk-start').disabled = false;
+  refresh();
+};
+$('mk-stop').onclick = () => post('/api/market/stop').then(refresh);
+$('mk-logout').onclick = () => post('/api/market/logout').then(refresh);
+$('mk-visible').onchange = () => post('/api/settings', { marketVisible: $('mk-visible').checked });
+$('mk-site').onchange = () => { $('site').value = $('mk-site').value; post('/api/settings', { site: $('mk-site').value }); };
 
 refresh();
 setInterval(refresh, 2000);

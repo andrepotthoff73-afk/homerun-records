@@ -3,7 +3,7 @@ import crypto from 'node:crypto';
 import { db, ensureSchema } from './_lib/db.js';
 import { send, intIds, isJson, likeEsc, blobConfigured } from './_lib/util.js';
 import { isAdmin, checkPassword, passwordConfigured, setSession, clearSession } from './_lib/auth.js';
-import { fetchCover, enrichRecord, rateRemaining } from './_lib/katalog.js';
+import { fetchCover, enrichRecord, salePrice, csvIsNotVinyl, rateRemaining } from './_lib/katalog.js';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -23,6 +23,11 @@ export default async function handler(req, res) {
     if (action === 'records') return await records(req, res);
     if (action === 'orders') return await orders(res);
     if (action === 'locations') return await locations(res);
+    if (action === 'needcond') return await needCondition(res);
+    if (action === 'market-next') return await marketNext(req, res);
+    if (action === 'market-recent') return await marketRecent(res);
+    if (post && action === 'condition') return await setCondition(req, res);
+    if (post && action === 'market-price') return await marketPrice(req, res);
     if (post && action === 'import') return await importRows(req, res);
     if (post && action === 'update') return await update(req, res);
     if (post && action === 'reprice') return await reprice(req, res);
@@ -59,6 +64,9 @@ async function stats(res) {
     sql.query(`SELECT count(*)::int AS n FROM records WHERE (cover_url IS NULL OR tracks IS NULL) AND release_id IS NOT NULL`),
     sql.query(`SELECT count(*) FILTER (WHERE enrich_status = 'pending')::int AS pending, count(*) FILTER (WHERE enrich_status = 'error')::int AS errors,
       count(*) FILTER (WHERE enrich_status = 'novinyl')::int AS novinyl,
+      count(*) FILTER (WHERE enrich_status = 'needcond')::int AS needcond,
+      count(*) FILTER (WHERE enrich_status = 'market')::int AS market,
+      max(updated_at) FILTER (WHERE enrich_status = 'done' AND market_offers IS NOT NULL) AS last_market,
       count(*) FILTER (WHERE enrich_status = 'done' AND enrich_note ILIKE '%Preisvorschläge%' AND status NOT IN ('sold', 'reserved'))::int AS nosugg FROM records`),
   ]);
   const s = Object.fromEntries(byStatus.map((r) => [r.status, r]));
@@ -76,6 +84,9 @@ async function stats(res) {
     enrichErrors: enrich[0].errors,
     enrichNoVinyl: enrich[0].novinyl,
     enrichNoSugg: enrich[0].nosugg,
+    needCondition: enrich[0].needcond,
+    marketPending: enrich[0].market,
+    lastMarket: enrich[0].last_market,
     coverToken: Boolean(process.env.DISCOGS_TOKEN),
     blob: blobConfigured(),
     paypal: Boolean(process.env.PAYPAL_CLIENT_ID && process.env.PAYPAL_CLIENT_SECRET),
@@ -143,6 +154,7 @@ async function importRows(req, res) {
   const auto = req.body?.auto === true;
   const batch = clean(req.body?.batch, 120);
   const location = clean(req.body?.location, 120);
+  if (auto) await saveSettings({ discount, minPrice });
 
   const cols = { key: [], rel: [], lst: [], artist: [], title: [], label: [], catno: [], format: [], released: [], genre: [],
     media: [], sleeve: [], descr: [], notes: [], avg: [], price: [], status: [], cover: [], batch: [], tracks: [], country: [] };
@@ -180,7 +192,7 @@ async function importRows(req, res) {
     `INSERT INTO records (import_key, release_id, listing_id, artist, title, label, catno, format, released, genre,
        media_condition, sleeve_condition, description, notes, avg_price, price, status, cover_url, thumb_url, batch, tracks, country, enrich_status, location)
      SELECT k, rel, lst, artist, title, label, catno, format, released, genre, media, sleeve, descr, notes, avg, price, status, cover, cover, batch, tracks, country,
-            CASE WHEN $22::boolean THEN 'pending' END, $23::text
+            CASE WHEN $22::boolean THEN 'needcond' END, $23::text
      FROM unnest($1::text[], $2::bigint[], $3::text[], $4::text[], $5::text[], $6::text[], $7::text[], $8::text[], $9::text[],
                  $10::text[], $11::text[], $12::text[], $13::text[], $14::text[], $15::numeric[], $16::numeric[], $17::text[],
                  $18::text[], $19::text[], $20::text[], $21::text[])
@@ -199,7 +211,7 @@ async function importRows(req, res) {
        thumb_url = coalesce(EXCLUDED.thumb_url, records.thumb_url),
        tracks = coalesce(EXCLUDED.tracks, records.tracks),
        country = coalesce(EXCLUDED.country, records.country),
-       enrich_status = CASE WHEN $22::boolean AND records.status NOT IN ('sold', 'reserved') THEN 'pending' ELSE records.enrich_status END,
+       enrich_status = CASE WHEN $22::boolean AND records.status NOT IN ('sold', 'reserved') THEN 'needcond' ELSE records.enrich_status END,
        location = coalesce(EXCLUDED.location, records.location),
        updated_at = now()
      RETURNING (xmax = 0) AS inserted`,
@@ -244,11 +256,10 @@ async function update(req, res) {
 
 async function reprice(req, res) {
   const discount = Math.min(90, Math.max(0, Number(req.body?.discount ?? 5)));
+  await saveSettings({ discount });
   const rows = await db().query(
-    // Basis minus Rabatt, dabei max. ±10 % zum günstigsten Angebot (falls bekannt)
-    `UPDATE records SET price = CASE WHEN lowest_offer IS NULL THEN round(avg_price * (100 - $1) / 100.0, 2)
-       ELSE greatest(least(round(avg_price * (100 - $1) / 100.0, 2), round(lowest_offer * 1.1, 2)), round(lowest_offer * 0.9, 2)) END,
-       updated_at = now()
+    // Ø-Marktpreis minus Rabatt
+    `UPDATE records SET price = round(avg_price * (100 - $1) / 100.0, 2), updated_at = now()
      WHERE avg_price IS NOT NULL AND NOT price_locked AND status IN ('available', 'draft') RETURNING id`,
     [discount],
   );
@@ -284,8 +295,6 @@ async function uploadCover(req, res) {
 
 // Eine Platte aus der Warteschlange ergänzen (der Admin-Browser ruft das Platte für Platte auf)
 async function enrichStep(req, res) {
-  const discount = Math.min(90, Math.max(0, Number(req.body?.discount ?? 5)));
-  const minPrice = Math.max(0, Number(req.body?.minPrice ?? 0));
   const sql = db();
   const next = await sql.query(`SELECT id, release_id, artist, title, catno, format, media_condition FROM records WHERE enrich_status = 'pending' ORDER BY id LIMIT 1`);
   const count = async () => (await sql.query(`SELECT count(*)::int AS n FROM records WHERE enrich_status = 'pending'`))[0].n;
@@ -293,7 +302,7 @@ async function enrichStep(req, res) {
   const rec = next[0];
   let result;
   try {
-    result = await enrichRecord(rec, { discount, minPrice });
+    result = await enrichRecord(rec);
   } catch (e) {
     if (e.rateLimit) return send(res, 200, { wait: 60, remaining: await count(), rate: 0 });
     // Als Fehler markieren, damit die Warteschlange nicht an einer Platte hängen bleibt („Erneut versuchen“ möglich)
@@ -313,4 +322,128 @@ async function enrichNoSuggestions(res) {
   const rows = await db().query(`UPDATE records SET enrich_status = 'pending', enrich_note = NULL
     WHERE enrich_status = 'done' AND enrich_note ILIKE '%Preisvorschläge%' AND status NOT IN ('sold', 'reserved') RETURNING id`);
   send(res, 200, { changed: rows.length });
+}
+
+// ---------- Einstellungen (Rabatt, Mindestpreis) – das Preis-Tool rechnet damit ----------
+async function loadSettings() {
+  const row = (await db().query(`SELECT value FROM app_settings WHERE key = 'pricing'`))[0];
+  return { discount: 5, minPrice: 0, ...(row?.value || {}) };
+}
+async function saveSettings(patch) {
+  const next = { ...(await loadSettings()), ...patch };
+  await db().query(`INSERT INTO app_settings (key, value) VALUES ('pricing', $1::jsonb)
+    ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`, [JSON.stringify(next)]);
+  return next;
+}
+
+// ---------- Zustand nach dem Import abfragen ----------
+async function needCondition(res) {
+  // CDs, Kassetten usw. (laut CSV) nicht abfragen – die werden ohnehin nicht bepreist
+  const all = await db().query(`SELECT id, format FROM records WHERE enrich_status = 'needcond'`);
+  const skipIds = all.filter((r) => csvIsNotVinyl(r.format)).map((r) => r.id);
+  if (skipIds.length) await db().query(`UPDATE records SET enrich_status = 'pending' WHERE id = ANY($1::int[])`, [skipIds]);
+  const items = await db().query(`SELECT id, release_id, artist, title, label, catno, format, released, media_condition, sleeve_condition, location
+    FROM records WHERE enrich_status = 'needcond' ORDER BY id LIMIT 2000`);
+  send(res, 200, { items });
+}
+
+const CONDITIONS = ['Mint (M)', 'Near Mint (NM or M-)', 'Very Good Plus (VG+)', 'Very Good (VG)', 'Good Plus (G+)', 'Good (G)', 'Fair (F)', 'Poor (P)'];
+const SLEEVES = [...CONDITIONS, 'Generic', 'Not Graded', 'No Cover'];
+
+async function setCondition(req, res) {
+  const sql = db();
+  // „Zustand aus der Liste übernehmen“ für alle wartenden Platten, die schon einen haben
+  if (req.body?.keepExisting) {
+    const rows = await sql.query(`UPDATE records SET enrich_status = 'pending', updated_at = now()
+      WHERE enrich_status = 'needcond' AND coalesce(media_condition, '') <> '' RETURNING id`);
+    return send(res, 200, { changed: rows.length });
+  }
+  const ids = intIds(req.body?.ids ?? [req.body?.id], 2000);
+  const media = String(req.body?.media || '');
+  const sleeve = String(req.body?.sleeve || '');
+  if (!ids.length) return send(res, 400, { error: 'Keine Platte angegeben.' });
+  if (!CONDITIONS.includes(media)) return send(res, 400, { error: 'Unbekannter Zustand der Platte.' });
+  if (sleeve && !SLEEVES.includes(sleeve)) return send(res, 400, { error: 'Unbekannter Zustand der Hülle.' });
+  const rows = await sql.query(`UPDATE records SET media_condition = $2, sleeve_condition = coalesce(nullif($3, ''), sleeve_condition),
+      enrich_status = CASE WHEN enrich_status = 'needcond' THEN 'pending' ELSE enrich_status END, updated_at = now()
+    WHERE id = ANY($1::int[]) RETURNING id`, [ids, media, sleeve]);
+  send(res, 200, { changed: rows.length });
+}
+
+// ---------- Marktpreis vom Preis-Tool (PC) ----------
+// Nächste Platte, deren Preis aus den Marktplatz-Angeboten ermittelt werden soll
+async function marketNext(req, res) {
+  const sql = db();
+  const skip = intIds(req.query.skip, 50);
+  const pick = () => sql.query(`SELECT id, release_id, artist, title, label, catno, format, media_condition
+    FROM records WHERE enrich_status = 'market' AND NOT (id = ANY($1::int[])) ORDER BY id LIMIT 1`, [skip]);
+  let next = await pick();
+  // Nichts bereit, aber Platten warten noch auf Cover & Daten → eine davon gleich hier ergänzen,
+  // damit das Preis-Tool auch ohne geöffneten Admin-Bereich weiterarbeiten kann
+  let enriched = false;
+  if (!next.length) {
+    const pending = (await sql.query(`SELECT id, release_id, artist, title, catno, format, media_condition FROM records WHERE enrich_status = 'pending' ORDER BY id LIMIT 1`))[0];
+    if (pending) {
+      enriched = true;
+      try { await enrichRecord(pending); } catch (e) {
+        if (!e.rateLimit) await sql.query(`UPDATE records SET enrich_status = 'error', enrich_note = $2 WHERE id = $1`, [pending.id, e.message.slice(0, 200)]);
+      }
+      next = await pick();
+    }
+  }
+  const remaining = (await sql.query(`SELECT count(*)::int AS n FROM records WHERE enrich_status = 'market'`))[0].n;
+  const waiting = (await sql.query(`SELECT count(*)::int AS n FROM records WHERE enrich_status IN ('needcond', 'pending')`))[0].n;
+  send(res, 200, { record: next[0] || null, remaining, waiting, enriched, settings: await loadSettings() });
+}
+
+async function marketRecent(res) {
+  const items = await db().query(`SELECT id, artist, title, media_condition, avg_price, price, status, cover_url, enrich_note, market_offers
+    FROM records WHERE market_offers IS NOT NULL ORDER BY updated_at DESC LIMIT 30`);
+  send(res, 200, { items });
+}
+
+const r2 = (n) => Math.round(n * 100) / 100;
+
+// Ergebnis vom Preis-Tool: Angebote (in Euro) → Durchschnitt → Verkaufspreis
+async function marketPrice(req, res) {
+  const sql = db();
+  const id = parseInt(req.body?.id, 10);
+  const rec = (await sql.query(`SELECT id, release_id, status, price_locked FROM records WHERE id = $1`, [id]))[0];
+  if (!rec) return send(res, 404, { error: 'Platte nicht gefunden.' });
+  const offers = (Array.isArray(req.body?.offers) ? req.body.offers : [])
+    .map((o) => ({ eur: Number(o.eur), country: String(o.country || '').slice(0, 60), condition: String(o.condition || '').slice(0, 60), item: String(o.item || '').slice(0, 30) }))
+    .filter((o) => Number.isFinite(o.eur) && o.eur > 0 && o.eur < 100000)
+    .slice(0, 10);
+  const url = String(req.body?.url || '').slice(0, 500);
+  const foundRelease = /^\d+$/.test(String(req.body?.releaseId || '')) ? String(req.body.releaseId) : null;
+
+  if (!offers.length) {
+    const note = String(req.body?.error || '').slice(0, 200) || 'Keine Angebote auf dem Marktplatz gefunden – bleibt Entwurf, Preis bitte von Hand eintragen';
+    await sql.query(`UPDATE records SET enrich_status = 'done', enrich_note = $2, market_offers = '[]'::jsonb,
+        release_id = coalesce(release_id, $3), updated_at = now() WHERE id = $1`, [id, note, foundRelease]);
+    return send(res, 200, { id, avg: null, price: null, note });
+  }
+
+  const s = await loadSettings();
+  // Die ersten (bis zu) 10 Angebote addieren und durch ihre Anzahl teilen
+  const avg = r2(offers.reduce((a, o) => a + o.eur, 0) / offers.length);
+  const sale = salePrice(avg, s);
+  const de = offers.filter((o) => /^(germany|deutschland)$/i.test(o.country)).length;
+  const parts = [`Ø aus ${offers.length} Angebot${offers.length === 1 ? '' : 'en'}`, `${de}× Deutschland`];
+  if (offers.length - de) parts.push(`${offers.length - de}× andere Länder`);
+  if (offers.length < 10) parts.push('weniger als 10 Angebote vorhanden');
+  if (s.discount) parts.push(`minus ${s.discount} %`);
+  if (sale === r2(s.minPrice) && s.minPrice > 0) parts.push(`Mindestpreis ${Number(s.minPrice).toFixed(2)} €`);
+  const note = parts.join(' · ');
+  const rows = await sql.query(
+    `UPDATE records SET avg_price = $2, lowest_offer = $3, market_offers = $4::jsonb,
+       price = CASE WHEN price_locked OR status IN ('sold', 'reserved') THEN price ELSE $5 END,
+       status = CASE WHEN status = 'draft' THEN 'available' ELSE status END,
+       release_id = coalesce(release_id, $6), enrich_status = 'done', enrich_note = $7, updated_at = now()
+     WHERE id = $1 RETURNING price, status`,
+    [id, avg, Math.min(...offers.map((o) => o.eur)), JSON.stringify({ url, offers }), sale, foundRelease, note],
+  );
+  // Release erst jetzt bekannt (Suche über Katalognummer) → Cover & Tracks nachladen
+  if (!rec.release_id && foundRelease) await fetchCover({ id, release_id: foundRelease }).catch(() => {});
+  send(res, 200, { id, avg, sale, note, ...rows[0] });
 }

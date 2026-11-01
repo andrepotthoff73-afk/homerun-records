@@ -3,7 +3,7 @@ import { blobConfigured } from './util.js';
 
 // Zugriff auf die Katalog-API (Token: DISCOGS_TOKEN). Dieser Code läuft nur auf dem Server.
 const UA = 'HomerunRecords/1.0';
-const API = 'https://api.discogs.com';
+const API = process.env.HR_DISCOGS_API || 'https://api.discogs.com';
 const PRICE_MAX_AGE = 30 * 864e5;
 export let rateRemaining = null;
 
@@ -41,8 +41,6 @@ const toEUR = (p, R) => (p && p.value != null && R[p.currency || 'EUR'] ? p.valu
 const round2 = (n) => Math.round(n * 100) / 100;
 // Zustandskürzel aus „Very Good Plus (VG+)“ → „VG+“
 const condCode = (s) => (String(s || '').match(/\(([^)]+)\)/) || [])[1] || null;
-// Höchstens so weit darf der Verkaufspreis vom günstigsten Angebot abweichen
-const MAX_DEVIATION = 0.10;
 
 // Nur Vinyl wird bepreist. Discogs-Formatnamen für Vinyl:
 const VINYL_FORMATS = /^(vinyl|flexi-disc|lathe cut|acetate)$/i;
@@ -154,10 +152,14 @@ async function searchRelease(rec) {
   return r.data.results?.[0]?.id || null;
 }
 
-// Eine Platte aus der Warteschlange vollständig ergänzen: Preise, Verkaufspreis, Cover, Tracks, Genre, Land
-export async function enrichRecord(rec, { discount = 5, minPrice = 0 } = {}) {
+// Eine Platte aus der Warteschlange ergänzen: Format prüfen, Cover, Tracks, Genre, Land.
+// Den Preis ermittelt danach das Preis-Tool auf dem PC aus den ersten 10 Marktplatz-Angeboten
+// (enrich_status = 'market'), weil der Marktplatz Abrufe von Servern blockiert.
+export async function enrichRecord(rec) {
   const sql = db();
   const notes = [];
+  const toMarket = (note) => sql.query(
+    `UPDATE records SET enrich_status = 'market', enrich_note = $2, updated_at = now() WHERE id = $1`, [rec.id, note || null]);
   const noVinyl = async (fmt) => {
     const note = `Kein Vinyl (${fmt || 'anderes Format'}) – wird nicht bepreist`;
     await sql.query(
@@ -176,72 +178,46 @@ export async function enrichRecord(rec, { discount = 5, minPrice = 0 } = {}) {
     if (rid) notes.push(`Per Suche zugeordnet (ID ${rid}) – bitte prüfen`);
   }
   if (!rid) {
+    // Ohne Release-ID sucht das Preis-Tool über die Katalognummer
+    if (rec.catno) {
+      notes.push('Im Katalog nicht gefunden – Preis über Katalognummer');
+      await toMarket(notes.join(' · '));
+      return { notes, market: true, status: 'draft' };
+    }
     await sql.query(`UPDATE records SET enrich_status = 'error', enrich_note = $2 WHERE id = $1`, [rec.id, 'Im Katalog nicht gefunden']);
     return { notes: ['Im Katalog nicht gefunden'], error: true };
   }
-  // Erst nur die Releasedaten holen und das Format prüfen – Preise nur für Vinyl abfragen
-  const first = await lookupRelease(rid, { prices: false });
-  if (first.notFound) {
+  const { data, notFound } = await lookupRelease(rid, { prices: false });
+  if (notFound) {
     await sql.query(`UPDATE records SET enrich_status = 'error', enrich_note = $2 WHERE id = $1`, [rec.id, 'Release-ID unbekannt']);
     return { notes: ['Release-ID unbekannt'], error: true };
   }
-  if (!first.data.info.vinyl) return noVinyl(first.data.info.formats.join(', '));
-  const { data } = await lookupRelease(rid);
-  const p = data.prices;
-  if (p.suggError) {
-    notes.push(/seller settings/i.test(p.suggError)
-      ? 'Preisvorschläge fehlen: Verkäufer-Einstellungen im Katalog-Konto ausfüllen'
-      : 'Keine Preisvorschläge (Token prüfen)');
-  }
-  // Preisvorschlag für den Zustand dieser Platte – ohne Angabe wird ein mittlerer Zustand angenommen: Very Good (VG)
-  const cond = condCode(rec.media_condition) || 'VG';
-  if (!condCode(rec.media_condition)) notes.push('Zustand unbekannt – VG (mittel) angenommen');
-  const condPrice = p.byCond?.[cond] ?? null;
-  const lowest = p.lowest;
-  // Basis = Mittelwert aus günstigstem Angebot und Zustands-Vorschlag
-  let avg = null;
-  if (condPrice != null && lowest != null) avg = round2((condPrice + lowest) / 2);
-  else if (lowest != null) { avg = round2(lowest); notes.push('Kein Preisvorschlag – nur günstigstes Angebot'); }
-  else if (condPrice != null) { avg = round2(condPrice); notes.push('Derzeit kein Angebot – nur Preisvorschlag'); }
-  let sale = null;
-  if (avg != null) {
-    sale = round2(avg * (100 - discount) / 100);
-    // Im Rahmen der ersten Angebote bleiben: max. ±10 % zum günstigsten Angebot
-    if (lowest != null) {
-      const lo = round2(lowest * (1 - MAX_DEVIATION));
-      const hi = round2(lowest * (1 + MAX_DEVIATION));
-      if (sale < lo) { sale = lo; notes.push('auf −10 % zum günstigsten Angebot begrenzt'); }
-      if (sale > hi) { sale = hi; notes.push('auf +10 % zum günstigsten Angebot begrenzt'); }
-    }
-    if (sale < minPrice) { sale = minPrice; notes.push(`Mindestpreis ${minPrice.toFixed(2)} €`); }
-    if (lowest != null) {
-      const dev = Math.round((sale / lowest - 1) * 100);
-      notes.push(`${dev > 0 ? '+' : ''}${dev} % zum günstigsten Angebot`);
-    }
-  } else notes.push('Kein Preis ermittelbar – bleibt Entwurf');
+  if (!data.info.vinyl) return noVinyl(data.info.formats.join(', '));
 
   let cover = '';
   try { cover = await storeCover(rid, data); } catch (e) { notes.push(`Cover: ${e.message}`); }
   const info = data.info;
-  const r2 = (v) => (v == null ? null : round2(v));
   const rows = await sql.query(
     `UPDATE records SET
        release_id = coalesce(release_id, $2),
-       price_low = $3, price_mid = $4, price_high = $5, lowest_offer = $6,
-       avg_price = coalesce($7, avg_price),
-       price = CASE WHEN price_locked OR status IN ('sold', 'reserved') THEN price ELSE coalesce($8, price) END,
-       status = CASE WHEN status = 'draft' AND coalesce($8, price) IS NOT NULL THEN 'available' ELSE status END,
-       genre = coalesce(genre, $9), country = coalesce(country, $10),
-       tracks = coalesce(nullif(tracks, ''), $11), released = coalesce(nullif(released, ''), $12),
-       cover_url = CASE WHEN $13 = '' THEN coalesce(cover_url, '') ELSE $13 END,
-       thumb_url = CASE WHEN $13 = '' THEN coalesce(thumb_url, '') ELSE $13 END,
-       enrich_status = 'done', enrich_note = $14, updated_at = now()
+       genre = coalesce(genre, $3), country = coalesce(country, $4),
+       tracks = coalesce(nullif(tracks, ''), $5), released = coalesce(nullif(released, ''), $6),
+       cover_url = CASE WHEN $7 = '' THEN coalesce(cover_url, '') ELSE $7 END,
+       thumb_url = CASE WHEN $7 = '' THEN coalesce(thumb_url, '') ELSE $7 END,
+       enrich_status = 'market', enrich_note = $8, updated_at = now()
      WHERE id = $1
      RETURNING price, status, cover_url`,
-    [rec.id, rid, r2(p.low), r2(p.mid), r2(p.high), r2(p.lowest), avg, sale,
-      info.genre, info.country, info.tracks || '', info.year, cover, notes.join(' · ') || null],
+    [rec.id, rid, info.genre, info.country, info.tracks || '', info.year, cover, notes.join(' · ') || null],
   );
-  return { cond, condPrice, lowest, forSale: p.forSale, avg, sale, notes, ...rows[0] };
+  return { notes, market: true, ...rows[0] };
+}
+
+// Verkaufspreis aus dem Ø der Marktplatz-Angebote: Ø minus Rabatt, mindestens Mindestpreis
+export function salePrice(avg, { discount = 0, minPrice = 0 } = {}) {
+  if (avg == null) return null;
+  let sale = round2(avg * (100 - discount) / 100);
+  if (sale < minPrice) sale = round2(minPrice);
+  return sale;
 }
 
 // Nur Cover/Tracks/Genre/Land nachladen (für Platten ohne Preis-Ermittlung)

@@ -6,7 +6,7 @@ Vinyl-Shop im Discogs-Stil mit passwortgeschütztem Admin-Bereich.
 - **Erweiterte Suche** (`/suche`): Künstler, Album, Track, Label, Katalognummer, Format, Genre/Stil, Land, Jahr von–bis, Zustand Platte/Hülle, Preis, Sortierung – mit Live-Trefferzahl
 - Auf der öffentlichen Website wird Discogs nirgends erwähnt (Preise heißen dort „Marktpreis“).
 - **PayPal-Checkout** (`/cart`): Preise werden auf dem Server geprüft, bezahlte Platten werden **automatisch als verkauft markiert**
-- **Admin** (`/admin`): CSV-Import aus Discogs (Preis = Discogs-Ø minus 10 %), Platten als verkauft markieren, Preise ändern, Bestellungen mit Lieferadresse ansehen, Cover von Discogs laden
+- **Admin** (`/admin`): CSV-Import aus Discogs mit Zustandsabfrage (Preis = Ø der ersten 10 Marktplatz-Angebote aus Deutschland minus Rabatt, über das Preis-Tool), Platten als verkauft markieren, Preise ändern, Bestellungen mit Lieferadresse ansehen, Cover von Discogs laden
 
 Technik: statisches HTML/CSS/JS + 3 Vercel-Funktionen (`/api`) + Postgres-Datenbank (Neon, kostenloser Tarif reicht für 20.000 Platten).
 
@@ -102,25 +102,41 @@ beispiel-import.csv        Beispieldatei zum Testen des Imports
 
 ---
 
-## Platten erfassen (alles in einem Zug) – empfohlen
+## Platten erfassen – empfohlen
 
-1. Admin → **„Platten erfassen“** → Rabatt (Standard 10 %) und Mindestpreis prüfen.
-2. **Discogs-CSV ablegen – fertig.** Alles Weitere läuft automatisch:
-   - **Schritt 1 – Platten anlegen:** alle Zeilen werden sofort gespeichert (bereits vorhandene nur aktualisiert).
-   - **Schritt 2 – Preise & Cover ermitteln:** jede Platte wird im Katalog nachgeschlagen: Preisvorschläge VG/VG+/NM → Durchschnitt minus Rabatt = Verkaufspreis, Cover (eigener Bildspeicher), Trackliste, Genre, Land. Mit Preis geht die Platte sofort online.
-3. **Fenster geöffnet lassen** (ca. 20 Platten pro Minute). „Anhalten“ und „Fortsetzen“ jederzeit möglich; wird die Seite später wieder geöffnet, geht es automatisch weiter.
+1. Admin → **„Platten erfassen“** → Rabatt (Standard 5 %), Mindestpreis und Lagerort (Kiste) prüfen.
+2. **Discogs-CSV ablegen.** Die Platten werden sofort angelegt (bereits vorhandene nur aktualisiert).
+3. **Zustand angeben:** Die Seite fragt Platte für Platte nach dem Zustand von Platte und Hülle.
+   - Klicken oder Tastatur: Ziffern **1–8** = M, NM, VG+, VG, G+, G, F, P – erst für die Platte, dann für die Hülle (**9** = Generic, **0** = keine Hülle)
+   - **Enter** übernimmt den Zustand aus der CSV (grün unterstrichen), **←** geht eine Platte zurück
+   - „Zustand aus der CSV für alle übernehmen“ überspringt die Abfrage für Platten, die schon einen Zustand haben
+   - CDs, Kassetten usw. werden nicht abgefragt und nicht bepreist
+4. **Cover & Daten** (Cover, Trackliste, Genre, Land) werden automatisch über die Discogs-API geladen.
+5. **Preise:** Auf dem PC `Preis-Tool-starten.bat` doppelklicken → Bereich **„Marktpreise für den Shop“** → Website-Adresse und (nur beim ersten Mal) Admin-Passwort → **Start**.
 
-Nur wenn eine Datei nicht erkannt wird (Künstler/Titel fehlen), öffnet sich unten die **Spalten-Zuordnung**.
-Voraussetzungen in Vercel: `DISCOGS_TOKEN` gesetzt, Verkäufer-Einstellungen im Discogs-Konto ausgefüllt (Währung EUR), **Blob-Speicher** verbunden.
-Einzelne Platten neu bepreisen: Admin → Platten → anhaken → **„Preise & Cover neu ermitteln“** (startet sofort).
+### So wird der Preis berechnet
+- Das Preis-Tool öffnet für jede Platte die Discogs-Verkaufsseite in **Microsoft Edge** auf deinem PC:
+  über die **Release-ID** (`discogs.com/sell/release/…`), wenn keine bekannt ist über die **Katalognummer** (`discogs.com/sell/list?q=…`, nur Vinyl).
+- Es nimmt die **ersten 10 Angebote von Verkäufern aus Deutschland** – in der Reihenfolge, in der Discogs sie anzeigt, egal in welchem Zustand.
+- Gibt es weniger als 10, wird mit Angeboten **aus anderen Ländern** aufgefüllt. Gibt es insgesamt weniger als 10, wird durch die tatsächliche Anzahl geteilt.
+- **Ø = Summe ÷ Anzahl** (Fremdwährungen mit dem EZB-Tageskurs in Euro), **Verkaufspreis = Ø minus Rabatt**, mindestens der Mindestpreis.
+- Die Platte geht sofort online. Ohne ein einziges Angebot bleibt sie Entwurf (Preis dann von Hand eintragen).
+- Im Admin-Bereich steht bei jeder Platte, aus wie vielen Angeboten (davon wie viele aus Deutschland) der Preis stammt, mit Link zu den Angeboten.
 
-Das lokale Preis-Tool (siehe unten) bleibt als Alternative erhalten, z. B. um nur eine Preisliste als CSV zu erzeugen.
+**Warum auf dem PC?** Discogs blockt automatische Abrufe der Verkaufsseiten von Servern (auch von Vercel). Ein normaler Browser auf deinem PC kommt durch.
+- Tempo: etwa eine Platte alle 10–15 Sekunden (absichtlich langsam, damit Discogs nicht sperrt). 1.000 Platten ≈ 3–4 Stunden. Der PC muss dabei laufen; das Edge-Fenster bleibt minimiert.
+- Zeigt Discogs eine Prüfung („Bist du ein Mensch?“), öffnet sich das Edge-Fenster: einmal bestätigen, dann geht es weiter.
+- Das Tool lädt bei Bedarf auch Cover & Daten nach, der Admin-Bereich muss dafür nicht offen sein.
+- Erkennt das Tool auf einer Seite keine Angebote, obwohl welche da sein müssten, speichert es die Seite unter `Ergebnisse/debug/` – damit lässt sich das Tool an einen geänderten Seitenaufbau anpassen.
+- Hinweis: Discogs untersagt in seinen Nutzungsbedingungen das automatische Auslesen der Website. Das Tool ruft deshalb bewusst langsam und nur für deinen eigenen Bestand ab.
+
+Einzelne Platten neu bepreisen: Admin → Platten → anhaken → **„Preise & Cover neu ermitteln“** → das Preis-Tool holt die Preise beim nächsten Durchlauf.
 
 ---
 
-## Preis-Tool (Preise & Cover automatisch ermitteln)
+## Preis-Tool: alternatives Verfahren (Preisvorschläge über die Discogs-API)
 
-`Preis-Tool-starten.bat` doppelklicken → im Browser öffnet sich http://localhost:4410.
+`Preis-Tool-starten.bat` doppelklicken → im Browser öffnet sich http://localhost:4410 → unten „Alternative“ aufklappen.
 
 1. **Discogs-Token** eintragen (discogs.com → Einstellungen → Entwickler → „Neuen Token generieren“) und einmalig auf discogs.com die **Verkäufer-Einstellungen** ausfüllen (Währung EUR). Ohne diese gibt Discogs keine Preisvorschläge heraus.
 2. CSV-Export deiner Discogs-Sammlung hineinziehen → **„Preise & Cover ermitteln“**.

@@ -50,6 +50,12 @@ const SCHEMA = [
   `CREATE INDEX IF NOT EXISTS records_enrich_idx ON records (enrich_status, id)`,
   // Physischer Lagerort (Kiste), nur im Admin-Bereich sichtbar
   `ALTER TABLE records ADD COLUMN IF NOT EXISTS location text`,
+  // Marktpreis aus den ersten 10 Angeboten (vom Preis-Tool auf dem PC ermittelt)
+  `ALTER TABLE records ADD COLUMN IF NOT EXISTS market_offers jsonb`,
+  `CREATE TABLE IF NOT EXISTS app_settings (
+    key   text PRIMARY KEY,
+    value jsonb NOT NULL
+  )`,
   // Kundenkonten (Mitgliederbereich) – Lieferadresse kommt immer aus PayPal, wird hier nicht gespeichert
   `CREATE TABLE IF NOT EXISTS customers (
     id            serial PRIMARY KEY,

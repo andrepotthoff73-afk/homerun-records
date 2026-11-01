@@ -78,6 +78,20 @@
     .step.done .step-num { background: var(--ok); color: #fff; }
     details#adv summary { cursor: pointer; }
     @media (max-width: 640px) { .steps { grid-template-columns: 1fr; } }
+    .steps.four { grid-template-columns: repeat(4, 1fr); }
+    @media (max-width: 900px) { .steps.four { grid-template-columns: 1fr 1fr; } }
+    #cond-box { border-color: var(--accent); }
+    .cond-rec { font-size: 1.15rem; margin: 4px 0 2px; }
+    .cond-row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin: 10px 0; }
+    .cond-row > span { width: 64px; font-weight: 700; color: var(--ink-2); font-size: .85rem; }
+    .cond-btn { border: 1px solid var(--line-2); background: #fff; border-radius: 6px; padding: 9px 12px; font-weight: 700; cursor: pointer; min-width: 52px; }
+    .cond-btn small { display: block; font-weight: 400; font-size: .68rem; color: var(--ink-3); }
+    .cond-btn:hover { border-color: var(--accent); }
+    .cond-btn.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .cond-btn.on small { color: #fff; }
+    .cond-btn.csv { box-shadow: inset 0 -3px 0 var(--ok); }
+    .pc-box { display: flex; gap: 14px; align-items: flex-start; background: #eef2ff; border: 1px solid #c7d2fe; border-radius: var(--radius); padding: 14px; margin-top: 14px; }
+    .pc-box b.big { font-size: 1.6rem; display: block; }
     .auto-box { display: flex; gap: 12px; align-items: flex-start; background: var(--ok-soft); border: 1px solid #b9e0c8; border-radius: var(--radius); padding: 14px; margin-bottom: 14px; cursor: pointer; }
     .auto-box input { margin-top: 4px; width: 18px; height: 18px; accent-color: var(--ok); flex-shrink: 0; }
     .tabs .badge { margin-left: 4px; vertical-align: 1px; }
@@ -136,7 +150,7 @@
       <section class="panel hidden" data-panel="import">
         <div class="card-box">
           <h2>Platten erfassen</h2>
-          <p class="muted small" style="margin-top:0">Lege einfach die CSV-Datei deiner Discogs-Sammlung ab – alles Weitere passiert automatisch: Die Platten werden angelegt, im Katalog nachgeschlagen (Basis = Mittelwert aus günstigstem aktuellen Angebot und Preisvorschlag für den Zustand der Platte, davon minus Rabatt; der Verkaufspreis bleibt höchstens 10 % vom günstigsten Angebot entfernt) und mit Cover, Trackliste, Genre und Land ergänzt. Platten mit Preis gehen sofort online. Bereits erfasste Platten werden nur aktualisiert, nie doppelt angelegt.</p>
+          <p class="muted small" style="margin-top:0">Lege die CSV-Datei deiner Discogs-Sammlung ab. Danach fragt die Seite bei jeder Platte nach dem Zustand. Cover, Trackliste, Genre und Land werden automatisch geladen. Den Preis ermittelt das Preis-Tool auf deinem PC: Durchschnitt der ersten 10 Marktplatz-Angebote aus Deutschland (fehlende werden mit anderen Ländern aufgefüllt), minus Rabatt.</p>
           <div class="form-grid" style="margin-bottom:14px">
             <label class="field">Rabatt auf den Durchschnitt (%)
               <input class="input" type="number" id="discount" value="5" min="0" max="90" step="1">
@@ -157,15 +171,32 @@
           </label>
         </div>
 
+        <div class="card-box hidden" id="cond-box">
+          <div class="toolbar" style="justify-content:space-between;margin:0">
+            <h2 style="margin:0">Zustand angeben <span class="muted small" id="cond-pos"></span></h2>
+            <button class="btn btn-sm hidden" id="cond-keep">Zustand aus der CSV für alle übernehmen</button>
+          </div>
+          <div id="cond-card"></div>
+          <div class="small muted">Tastatur: Ziffern <b>1–8</b> wählen erst den Zustand der Platte, dann der Hülle (<b>9</b> = Generic, <b>0</b> = keine Hülle) · <b>Enter</b> = vorgeschlagenen Zustand übernehmen · <b>←</b> = zurück</div>
+        </div>
+
         <div class="card-box hidden" id="run-box">
-          <div class="steps">
+          <div class="steps four">
             <div class="step" id="step-import">
               <span class="step-num">1</span>
               <div><strong>Platten anlegen</strong><div class="small muted" id="import-text">–</div></div>
             </div>
-            <div class="step" id="step-enrich">
+            <div class="step" id="step-cond">
               <span class="step-num">2</span>
-              <div><strong>Preise &amp; Cover ermitteln</strong><div class="small muted" id="e-status">–</div></div>
+              <div><strong>Zustand angeben</strong><div class="small muted" id="cond-text">–</div></div>
+            </div>
+            <div class="step" id="step-enrich">
+              <span class="step-num">3</span>
+              <div><strong>Cover &amp; Daten</strong><div class="small muted" id="e-status">–</div></div>
+            </div>
+            <div class="step" id="step-market">
+              <span class="step-num">4</span>
+              <div><strong>Preise (Preis-Tool)</strong><div class="small muted" id="m-status">–</div></div>
             </div>
           </div>
           <div class="progress"><div id="e-prog"></div></div>
@@ -173,15 +204,25 @@
           <div class="toolbar" style="margin:4px 0 0">
             <button class="btn" id="e-start">Anhalten</button>
             <button class="btn hidden" id="e-retry">Fehlgeschlagene erneut versuchen</button>
-            <button class="btn hidden" id="e-nosugg">Ersatzpreise neu ermitteln</button>
-            <span class="small muted">Lass dieses Fenster geöffnet, bis alles fertig ist (ca. 20 Platten pro Minute).</span>
+            <span class="small muted">Lass dieses Fenster geöffnet, bis Cover &amp; Daten fertig sind.</span>
           </div>
           <div id="e-warn" class="small" style="margin-top:8px;color:var(--warn)"></div>
+          <div class="pc-box hidden" id="pc-box">
+            <div><b class="big" id="pc-n">0</b><span class="small muted">warten auf Preis</span></div>
+            <div class="small"><strong>Preise ermitteln:</strong> Auf deinem PC <code>Preis-Tool-starten.bat</code> doppelklicken → Bereich „Marktpreise für den Shop“ → <strong>Start</strong>.
+              Das Tool liest bei jeder Platte die ersten 10 Angebote von Verkäufern aus Deutschland (fehlende werden mit anderen Ländern aufgefüllt), bildet den Durchschnitt und trägt den Preis hier ein.
+              <div class="muted" id="pc-last" style="margin-top:4px"></div></div>
+          </div>
           <div class="log hidden" id="log"></div>
         </div>
 
+        <div class="table-wrap hidden" id="m-table-wrap" style="margin-bottom:18px"><table class="t" id="m-table">
+          <thead><tr><th></th><th>Platte</th><th class="hide-m">Zustand</th><th>Ø Markt</th><th>Verkaufspreis</th><th class="hide-m">Angebote</th></tr></thead>
+          <tbody></tbody>
+        </table></div>
+
         <div class="table-wrap hidden" id="e-table-wrap"><table class="t" id="e-table">
-          <thead><tr><th></th><th>Platte</th><th class="hide-m">Zustand</th><th class="hide-m">Vorschlag</th><th class="hide-m">Günstigstes Angebot</th><th>Basis (Ø)</th><th>Verkaufspreis</th><th class="hide-m">Hinweis</th></tr></thead>
+          <thead><tr><th></th><th>Platte</th><th class="hide-m">Zustand</th><th class="hide-m">Hinweis</th></tr></thead>
           <tbody></tbody>
         </table></div>
 

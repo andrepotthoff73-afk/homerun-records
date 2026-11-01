@@ -63,7 +63,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   loaders.overview = async () => {
     try {
       const s = await call('/api/admin?action=stats');
-      setBadge(s.enrichPending);
+      setBadge(s.enrichPending + s.needCondition);
       $('kpis').innerHTML = [
         ['Im Shop', num(s.available), `Warenwert ${eur(s.availableValue)}`],
         ['Verkauft', num(s.sold), `Umsatz ${eur(s.soldValue)}`],
@@ -83,7 +83,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         s.blob
           ? item('ok', 'Bildspeicher verbunden – Cover aus dem Preis-Tool werden gespeichert')
           : item('warn', 'Optional: Blob-Bildspeicher in Vercel verbinden, damit das Preis-Tool Cover hochladen kann'),
-        s.enrichPending ? item('warn', `${num(s.enrichPending)} Platte(n) warten auf Preise &amp; Cover – <a href="#" data-goto="import">jetzt ermitteln</a>`) : '',
+        s.needCondition ? item('warn', `${num(s.needCondition)} Platte(n) warten auf die Zustandsangabe – <a href="#" data-goto="import">jetzt angeben</a>`) : '',
+        s.enrichPending ? item('warn', `${num(s.enrichPending)} Platte(n) warten auf Cover &amp; Daten – <a href="#" data-goto="import">jetzt laden</a>`) : '',
+        s.marketPending ? item('warn', `${num(s.marketPending)} Platte(n) warten auf den Preis – Preis-Tool auf dem PC starten`) : '',
         s.enrichErrors ? item('no', `${num(s.enrichErrors)} Platte(n) konnten nicht ermittelt werden – <a href="#" data-goto="import">erneut versuchen</a>`) : '',
         s.reserved ? item('warn', `${num(s.reserved)} Platte(n) reserviert (laufende Zahlung)`) : '',
       ].join('');
@@ -270,6 +272,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     $('run-box').classList.remove('hidden');
     setStep('step-import', 'active');
     setStep('step-enrich', '');
+    setStep('step-cond', '');
+    setStep('step-market', '');
     $('e-prog').style.background = '';
     $('e-status').textContent = 'wartet …';
     $('e-prog').style.width = '0%';
@@ -305,7 +309,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Feld leeren, damit die nächste Liste nicht versehentlich in derselben Kiste landet
     $('location').value = '';
     loadLocations();
-    startEnrich();
+    await loadConditions();
   }
 
   // ---------- Lagerorte (Kisten) ----------
@@ -335,8 +339,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     const s = lastStats;
     if (!s) return;
     $('e-kpis').innerHTML = [
-      ['Noch offen', num(s.enrichPending), s.enrichPending ? `ca. ${num(Math.max(1, Math.ceil(s.enrichPending / 20)))} Min.` : 'alles erledigt'],
-      ['Ergänzt', num(en.done), 'in dieser Sitzung'],
+      ['Zustand fehlt', num(s.needCondition), s.needCondition ? 'bitte oben angeben' : 'alles angegeben'],
+      ['Cover & Daten offen', num(s.enrichPending), s.enrichPending ? 'wird geladen' : 'erledigt'],
+      ['Warten auf Preis', num(s.marketPending), s.marketPending ? 'Preis-Tool auf dem PC' : 'alle bepreist'],
       ['Fehlgeschlagen', num(s.enrichErrors), s.enrichErrors ? 'erneut versuchen möglich' : '–'],
       ['Kein Vinyl', num(s.enrichNoVinyl), s.enrichNoVinyl ? 'CDs usw. – nicht bepreist' : '–'],
       ['Im Shop', num(s.available), 'Platten online'],
@@ -345,16 +350,15 @@ document.addEventListener('DOMContentLoaded', async () => {
   async function enrichStats() {
     const s = await call('/api/admin?action=stats');
     lastStats = s;
-    setBadge(s.enrichPending);
+    setBadge(s.enrichPending + s.needCondition);
     renderKpis();
+    renderMarket(s);
     $('e-retry').classList.toggle('hidden', !s.enrichErrors);
-    $('e-nosugg').classList.toggle('hidden', !s.enrichNoSugg);
-    $('e-nosugg').textContent = `${num(s.enrichNoSugg)} Platte(n) mit Ersatzpreis neu ermitteln`;
     const warn = [];
-    if (!s.coverToken) warn.push('Kein Katalog-Token gesetzt (DISCOGS_TOKEN, siehe README) – ohne Token gibt es keine Preisvorschläge und nur ca. 8 Platten pro Minute.');
+    if (!s.coverToken) warn.push('Kein Katalog-Token gesetzt (DISCOGS_TOKEN, siehe README) – Cover und Tracklisten werden dann nur langsam geladen.');
     if (!s.blob) warn.push('Bildspeicher nicht verbunden – Cover werden vom Katalog-Server angezeigt.');
     $('e-warn').textContent = warn.join(' ');
-    if (s.enrichPending || s.enrichErrors || s.enrichNoSugg) $('run-box').classList.remove('hidden');
+    if (s.enrichPending || s.enrichErrors || s.needCondition || s.marketPending) $('run-box').classList.remove('hidden');
     return s;
   }
 
@@ -362,20 +366,20 @@ document.addEventListener('DOMContentLoaded', async () => {
   loaders.import = async () => {
     loadLocations();
     const s = await enrichStats().catch(() => null);
-    if (s?.enrichPending && !en.running && !importing && !en.paused) {
+    if (!s || importing) return;
+    if (s.needCondition || s.enrichPending || s.marketPending) {
       setStep('step-import', 'done');
       if ($('import-text').textContent === '–') $('import-text').textContent = 'erledigt';
-      startEnrich();
     }
+    if (s.needCondition && !cond.items.length) await loadConditions();
+    if (s.enrichPending && !en.running && !en.paused) startEnrich();
   };
 
   function renderEnrichRows() {
-    const fmt = (v) => (v == null ? '–' : eur(v));
     $('e-table').querySelector('tbody').innerHTML = en.rows.slice(0, 200).map((r) => `<tr>
       <td><div class="thumb"><img src="${esc(r.cover_url || '/assets/vinyl.svg')}" alt="" loading="lazy" onerror="this.onerror=null;this.src='/assets/vinyl.svg'"></div></td>
-      <td><strong>${esc(r.artist)}</strong> – ${esc(r.title)}<div class="small muted">#${r.id} · <span class="st ${r.error ? 'failed' : r.novinyl ? 'draft' : r.status || 'draft'}">${r.error ? 'Fehler' : r.novinyl ? 'Kein Vinyl' : ({ available: 'Im Shop', draft: 'Entwurf', sold: 'Verkauft', reserved: 'Reserviert' }[r.status] || r.status)}</span></div></td>
-      <td class="hide-m">${esc(r.cond || '–')}</td><td class="num hide-m">${fmt(r.condPrice)}</td><td class="num hide-m">${fmt(r.lowest)}${r.forSale ? ` <span class="muted small">(${r.forSale}×)</span>` : ''}</td>
-      <td class="num">${fmt(r.avg)}</td><td class="sale">${r.price != null ? eur(r.price) : '–'}</td>
+      <td><strong>${esc(r.artist)}</strong> – ${esc(r.title)}<div class="small muted">#${r.id} · <span class="st ${r.error ? 'failed' : r.novinyl ? 'draft' : 'reserved'}">${r.error ? 'Fehler' : r.novinyl ? 'Kein Vinyl' : 'wartet auf Preis'}</span></div></td>
+      <td class="hide-m small">${esc(r.media_condition || '')}</td>
       <td class="hide-m e-note">${esc((r.notes || []).join(' · '))}</td>
     </tr>`).join('');
   }
@@ -403,6 +407,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       let r;
       try {
         r = await call('/api/admin?action=enrich', { body: { discount: s.discount, minPrice: s.minPrice } });
+        if (r.record) r.record.media_condition = cond.byId.get(r.record.id) || '';
       } catch (e) {
         if (e.status === 401) break;
         $('e-status').textContent = `Fehler: ${e.message} – neuer Versuch in 20 Sekunden`;
@@ -443,7 +448,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       $('e-prog').style.background = 'var(--ok)';
       $('e-status').textContent = `Fertig – ${num(en.done)} Platten ergänzt.`;
       $('e-start').classList.add('hidden');
-      toast('Erfassung abgeschlossen');
+      if (!cond.items.length) toast('Cover & Daten geladen – jetzt Preise mit dem Preis-Tool ermitteln');
     } else {
       $('e-start').textContent = 'Fortsetzen';
       $('e-status').textContent = 'Angehalten – mit „Fortsetzen“ geht es weiter.';
@@ -458,11 +463,173 @@ document.addEventListener('DOMContentLoaded', async () => {
     toast(`${num(r.changed)} Platte(n) werden erneut ermittelt`);
     startEnrich();
   });
-  $('e-nosugg').addEventListener('click', async () => {
-    const r = await call('/api/admin?action=enrich-nosugg', { body: {} });
-    toast(`${num(r.changed)} Platte(n) werden mit Preisvorschlägen neu ermittelt`);
-    startEnrich();
+
+  // ---------- Schritt 2: Zustand jeder Platte abfragen ----------
+  const COND = [
+    ['M', 'Mint (M)', 'neu'], ['NM', 'Near Mint (NM or M-)', 'fast neu'], ['VG+', 'Very Good Plus (VG+)', 'sehr gut+'],
+    ['VG', 'Very Good (VG)', 'sehr gut'], ['G+', 'Good Plus (G+)', 'gut+'], ['G', 'Good (G)', 'gut'],
+    ['F', 'Fair (F)', 'mäßig'], ['P', 'Poor (P)', 'schlecht'],
+  ];
+  const SLEEVE = [...COND, ['Generic', 'Generic', 'Neutral'], ['Keine', 'No Cover', 'ohne Hülle']];
+  const cond = { items: [], i: 0, media: null, sleeve: null, byId: new Map(), saving: false };
+  const condKey = (full) => COND.find((c) => c[1] === full)?.[0] || SLEEVE.find((c) => c[1] === full)?.[0] || null;
+
+  async function loadConditions() {
+    let items = [];
+    try { ({ items } = await call('/api/admin?action=needcond')); } catch (e) { toast(e.message); return; }
+    cond.items = items;
+    cond.i = 0;
+    if (!items.length) { finishConditions(); return; }
+    $('run-box').classList.remove('hidden');
+    $('cond-box').classList.remove('hidden');
+    setStep('step-cond', 'active');
+    $('cond-keep').classList.toggle('hidden', !items.some((r) => r.media_condition));
+    $('cond-keep').textContent = `Zustand aus der CSV für ${num(items.filter((r) => r.media_condition).length)} Platte(n) übernehmen`;
+    renderCondition();
+    // Fokus aus Eingabefeldern nehmen, damit die Zifferntasten sofort wirken
+    document.activeElement?.blur?.();
+    $('cond-box').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function finishConditions() {
+    $('cond-box').classList.add('hidden');
+    setStep('step-cond', 'done');
+    $('cond-text').textContent = 'erledigt';
+    cond.items = [];
+    if (!en.running && !en.paused) startEnrich();
+  }
+
+  function renderCondition() {
+    const r = cond.items[cond.i];
+    if (!r) { finishConditions(); return; }
+    cond.media = condKey(r.media_condition);
+    cond.sleeve = condKey(r.sleeve_condition);
+    cond.picked = false;
+    $('cond-pos').textContent = `– Platte ${num(cond.i + 1)} von ${num(cond.items.length)}`;
+    $('cond-text').textContent = `${num(cond.i)} von ${num(cond.items.length)} angegeben`;
+    const btns = (list, kind, csvVal) => list.map(([k, full, de], n) =>
+      `<button type="button" class="cond-btn${condKey(csvVal) === k ? ' csv' : ''}" data-cond="${kind}" data-v="${esc(full)}" data-k="${esc(k)}" title="${esc(full)}${kind === 'media' ? ` – Taste ${n + 1}` : ''}">${esc(k)}<small>${esc(de)}</small></button>`).join('');
+    $('cond-card').innerHTML = `
+      <div class="cond-rec"><strong>${esc(r.artist)}</strong> – ${esc(r.title)}</div>
+      <div class="small muted">#${r.id} · ${[r.label, r.catno, r.format, r.released].filter(Boolean).map(esc).join(' · ')}${r.location ? ` · <span class="loc">${esc(r.location)}</span>` : ''}</div>
+      ${r.media_condition ? `<div class="small" style="margin-top:4px;color:var(--ok)">In der CSV: Platte ${esc(condKey(r.media_condition) || r.media_condition)}${r.sleeve_condition ? `, Hülle ${esc(condKey(r.sleeve_condition) || r.sleeve_condition)}` : ''} (grün unterstrichen) – Enter übernimmt das</div>` : ''}
+      <div class="cond-row"><span>Platte</span>${btns(COND, 'media', r.media_condition)}</div>
+      <div class="cond-row"><span>Hülle</span>${btns(SLEEVE, 'sleeve', r.sleeve_condition)}</div>
+      <div class="toolbar" style="margin:6px 0 10px"><button type="button" class="btn btn-sm" id="cond-back" ${cond.i ? '' : 'disabled'}>← Zurück</button></div>`;
+    markCondition();
+  }
+
+  function markCondition() {
+    document.querySelectorAll('#cond-card [data-cond]').forEach((b) => {
+      const sel = b.dataset.cond === 'media' ? cond.media : cond.sleeve;
+      b.classList.toggle('on', cond.picked && b.dataset.k === sel && (b.dataset.cond === 'media' || cond.picked === 'both'));
+    });
+  }
+
+  async function saveCondition(media, sleeve) {
+    const r = cond.items[cond.i];
+    if (!r || cond.saving) return;
+    cond.saving = true;
+    const fullM = COND.find((c) => c[0] === media)?.[1];
+    const fullS = SLEEVE.find((c) => c[0] === sleeve)?.[1] || '';
+    try {
+      await call('/api/admin?action=condition', { body: { id: r.id, media: fullM, sleeve: fullS } });
+      r.media_condition = fullM;
+      if (fullS) r.sleeve_condition = fullS;
+      cond.byId.set(r.id, media + (sleeve ? ` / ${sleeve}` : ''));
+      cond.i++;
+      renderCondition();
+      // Cover & Daten laufen parallel zur Zustandsabfrage
+      if (!en.running && !en.paused) startEnrich();
+    } catch (e) { toast(e.message); } finally { cond.saving = false; }
+  }
+
+  $('cond-card').addEventListener('click', (e) => {
+    if (e.target.closest('#cond-back')) { if (cond.i) { cond.i--; renderCondition(); } return; }
+    const b = e.target.closest('[data-cond]');
+    if (!b) return;
+    if (b.dataset.cond === 'media') { cond.media = b.dataset.k; cond.picked = true; markCondition(); return; }
+    if (!cond.picked && !cond.media) { toast('Bitte zuerst den Zustand der Platte wählen'); return; }
+    cond.sleeve = b.dataset.k;
+    cond.picked = 'both';
+    markCondition();
+    saveCondition(cond.media, cond.sleeve);
   });
+
+  document.addEventListener('keydown', (e) => {
+    if ($('cond-box').classList.contains('hidden') || !cond.items[cond.i]) return;
+    if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)) return;
+    if (e.key === 'ArrowLeft' && cond.i) { e.preventDefault(); cond.i--; renderCondition(); return; }
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (cond.media) saveCondition(cond.media, cond.sleeve);
+      else toast('Für diese Platte steht kein Zustand in der CSV – bitte wählen');
+      return;
+    }
+    const n = e.key === '0' ? 10 : Number(e.key);
+    if (!(n >= 1 && n <= 10)) return;
+    e.preventDefault();
+    if (!cond.picked) {
+      if (n > 8) return;
+      cond.media = COND[n - 1][0];
+      cond.picked = true;
+      markCondition();
+    } else {
+      cond.sleeve = SLEEVE[n - 1][0];
+      cond.picked = 'both';
+      markCondition();
+      saveCondition(cond.media, cond.sleeve);
+    }
+  });
+
+  $('cond-keep').addEventListener('click', async () => {
+    const n = cond.items.filter((r) => r.media_condition).length;
+    if (!confirm(`Bei ${n} Platte(n) den Zustand aus der CSV übernehmen?\n\nPlatten ohne Zustand in der CSV werden weiter abgefragt.`)) return;
+    try {
+      const r = await call('/api/admin?action=condition', { body: { keepExisting: true } });
+      toast(`${num(r.changed)} Zustände übernommen`);
+      await loadConditions();
+      if (!en.running && !en.paused) startEnrich();
+    } catch (e) { toast(e.message); }
+  });
+
+  // ---------- Schritt 4: Preise – das Preis-Tool auf dem PC arbeitet die Warteschlange ab ----------
+  let marketTimer = null;
+  function renderMarket(s) {
+    const n = s.marketPending || 0;
+    $('pc-box').classList.toggle('hidden', !n && !s.lastMarket);
+    $('pc-n').textContent = num(n);
+    const last = s.lastMarket ? new Date(s.lastMarket) : null;
+    const active = last && Date.now() - last.getTime() < 120000;
+    $('pc-last').textContent = last ? `Letzter Preis vom Preis-Tool: ${last.toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' })}${active ? ' – das Preis-Tool läuft gerade' : ''}` : 'Das Preis-Tool hat noch keinen Preis gemeldet.';
+    setStep('step-market', n ? 'active' : last ? 'done' : '');
+    $('m-status').textContent = n ? `${num(n)} warten${active ? ' · Preis-Tool läuft' : ' · Preis-Tool starten'}` : last ? 'alle bepreist' : '–';
+    clearTimeout(marketTimer);
+    if (n || active) {
+      loadMarketRecent();
+      // Solange Preise kommen, Anzeige alle 15 Sekunden auffrischen
+      marketTimer = setTimeout(() => { if (!document.hidden && !$('cond-box').closest('[data-panel]').classList.contains('hidden')) enrichStats().catch(() => {}); }, 15000);
+    }
+  }
+
+  async function loadMarketRecent() {
+    try {
+      const { items } = await call('/api/admin?action=market-recent');
+      $('m-table-wrap').classList.toggle('hidden', !items.length);
+      $('m-table').querySelector('tbody').innerHTML = items.map((r) => {
+        const offers = r.market_offers?.offers || [];
+        const de = offers.filter((o) => /^(germany|deutschland)$/i.test(o.country)).length;
+        return `<tr>
+          <td><div class="thumb"><img src="${esc(r.cover_url || '/assets/vinyl.svg')}" alt="" loading="lazy" onerror="this.onerror=null;this.src='/assets/vinyl.svg'"></div></td>
+          <td><strong>${esc(r.artist)}</strong> – ${esc(r.title)}<div class="small muted">#${r.id}${r.market_offers?.url ? ` · <a href="${esc(r.market_offers.url)}" target="_blank" rel="noopener">Angebote ansehen ↗</a>` : ''}</div>${offers.length ? '' : `<div class="e-note">${esc(r.enrich_note || '')}</div>`}</td>
+          <td class="hide-m small">${esc(condKey(r.media_condition) || r.media_condition || '')}</td>
+          <td class="num">${r.avg_price != null && offers.length ? eur(r.avg_price) : '–'}</td>
+          <td class="sale">${r.price != null && offers.length ? eur(r.price) : '–'}</td>
+          <td class="hide-m small" title="${esc(offers.map((o) => `${eur(o.eur)} (${o.country})`).join(', '))}">${offers.length ? `${offers.length}× (${de}× DE)` : '–'}</td>
+        </tr>`;
+      }).join('');
+    } catch { /* optional */ }
+  }
   window.addEventListener('beforeunload', (e) => { if (en.running || importing) { e.preventDefault(); e.returnValue = ''; } });
 
   // ---------- Platten ----------
