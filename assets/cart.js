@@ -87,7 +87,8 @@ document.addEventListener('DOMContentLoaded', async () => {
           <div class="line total"><span>Gesamt</span><span>${eur(t.total)}</span></div>
           <div id="pay-msg"></div>
           <div id="paypal-buttons"></div>
-          <p class="small muted" style="margin:0">Mit dem Kauf akzeptierst du unsere <a href="/rechtliches#agb">AGB</a> und die <a href="/rechtliches#widerruf">Widerrufsbelehrung</a>. <strong>Versand ausschließlich an die in deinem PayPal-Konto hinterlegte Adresse.</strong></p>
+          <p class="small muted" style="margin:0"><strong>Privatverkauf</strong> – kein Widerrufsrecht und keine Gewährleistung. Mit dem Kauf akzeptierst du die <a href="/rechtliches#verkaufsbedingungen">Verkaufsbedingungen</a>. <strong>Versand ausschließlich an die in deinem PayPal-Konto hinterlegte Adresse.</strong></p>
+          <p class="muted" style="margin:4px 0 0;font-size:.7rem">Bei Beanstandungen ist eine Retoure möglich; die Kosten der Rücksendung trägt der Käufer.</p>
         </aside>
       </div>`;
     mountPayPal();

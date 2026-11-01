@@ -157,11 +157,11 @@ const HR = (() => {
           <a href="/rechtliches#versand">Versand &amp; Zahlung</a>
           <a href="/rechtliches#impressum">Impressum</a>
           <a href="/rechtliches#datenschutz">Datenschutz</a>
-          <a href="/rechtliches#widerruf">Widerruf &amp; AGB</a>
+          <a href="/rechtliches#verkaufsbedingungen">Verkaufsbedingungen</a>
           <a href="#" data-cookie-open>Cookie-Hinweis</a>
         </div>
       </div>
-      <div class="legal">© ${new Date().getFullYear()} Homerun Records · Alle Preise inkl. MwSt. · zzgl. Versand</div>
+      <div class="legal">© ${new Date().getFullYear()} Homerun Records · Privatverkauf aus einer Plattensammlung · Endpreise zzgl. Versand</div>
     </footer>`;
   }
 

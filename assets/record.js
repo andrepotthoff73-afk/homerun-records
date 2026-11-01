@@ -62,7 +62,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           : `<div class="price">${eur(rec.price)}</div>
              ${cartButton(rec, 'btn-block btn-lg')}
              <ul>${perks.map((p) => `<li>${ICON.check}<span>${p}</span></li>`).join('')}</ul>
-             <p class="small muted" style="margin:0">Einzelstück – nur 1× vorhanden. zzgl. <a href="/rechtliches#versand">Versand</a>. Versand an deine PayPal-Adresse.</p>`}
+             <p class="small muted" style="margin:0">Einzelstück – nur 1× vorhanden. zzgl. <a href="/rechtliches#versand">Versand</a>. Versand an deine PayPal-Adresse. <a href="/rechtliches#verkaufsbedingungen">Privatverkauf</a> – ohne Gewährleistung.</p>`}
         <button class="btn btn-block wish-btn" id="wish">${ICON.heart} Merken</button>
       </aside>
     </div>`;
