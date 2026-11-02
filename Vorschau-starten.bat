@@ -1,5 +1,5 @@
 @echo off
-title Homerun Records - Vorschau
+title myrecords - Vorschau
 cd /d "%~dp0vorschau"
 where node >nul 2>nul || (echo Node.js fehlt. Bitte von https://nodejs.org installieren. & pause & exit /b)
 if not exist node_modules (

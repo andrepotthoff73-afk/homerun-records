@@ -1,5 +1,5 @@
 @echo off
-title Homerun Records - Preis-Tool
+title myrecords - Preis-Tool
 cd /d "%~dp0preis-tool"
 where node >nul 2>nul || (echo Node.js fehlt. Bitte von https://nodejs.org installieren. & pause & exit /b)
 if not exist node_modules\playwright-core (

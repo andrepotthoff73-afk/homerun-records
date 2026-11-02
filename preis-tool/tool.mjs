@@ -1,4 +1,4 @@
-// Homerun Records – Preis-Tool
+// myrecords – Preis-Tool
 // Liest eine Discogs-CSV, holt Preise, Cover, Tracklisten über die offizielle Discogs-API,
 // berechnet den Verkaufspreis (= Ø, ohne Rabatt) und lädt auf Wunsch alles in den Shop.
 import http from 'node:http';
@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 import { createMarket } from './markt.mjs';
 
 const PORT = 4410;
-const UA = 'HomerunRecordsPreisTool/1.0';
+const UA = 'myrecordsPreisTool/1.0';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..');
 const OUT_ROOT = path.join(ROOT, 'Ergebnisse');
@@ -454,7 +454,7 @@ http.createServer(async (req, res) => {
   }
 }).listen(PORT, '127.0.0.1', () => {
   console.log('');
-  console.log('  Homerun Records Preis-Tool laeuft:  http://localhost:' + PORT);
+  console.log('  myrecords Preis-Tool laeuft:  http://localhost:' + PORT);
   console.log('  Ergebnisse:  ' + OUT_ROOT);
   console.log('  Zum Beenden dieses Fenster schliessen.');
 });

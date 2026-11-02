@@ -1,4 +1,4 @@
-# Homerun Records
+# myrecords
 
 Vinyl-Shop im Discogs-Stil mit passwortgeschütztem Admin-Bereich.
 
@@ -45,7 +45,7 @@ Danach **Deployments → … → Redeploy**, damit die Werte aktiv werden.
 > PayPal: Zuerst im **Sandbox**-Modus mit den Sandbox-Zugangsdaten und einem Sandbox-Käuferkonto testen. Für echte Zahlungen die **Live**-Zugangsdaten eintragen und `PAYPAL_MODE=live` setzen.
 
 ### 5. Eigene Domain (optional)
-Vercel → Settings → Domains → z. B. `homerun-records.de` eintragen und den DNS-Anweisungen folgen.
+Vercel → Settings → Domains → z. B. `myrecords.de` eintragen und den DNS-Anweisungen folgen.
 
 ---
 

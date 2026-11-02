@@ -16,7 +16,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     return;
   }
 
-  document.title = `${rec.artist} – ${rec.title} | Homerun Records`;
+  document.title = `${rec.artist} – ${rec.title} | myrecords`;
   document.getElementById('crumbs').innerHTML =
     `<a href="/">Shop</a> › <a href="/?q=${encodeURIComponent(rec.artist)}">${esc(rec.artist)}</a> › ${esc(rec.title)}`;
 

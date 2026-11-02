@@ -1,4 +1,4 @@
-// Homerun Records – gemeinsame Funktionen für alle Seiten
+// myrecords – gemeinsame Funktionen für alle Seiten
 const HR = (() => {
   const ICON = {
     logo: '<svg viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="30" fill="#000"/><circle cx="32" cy="32" r="22" fill="none" stroke="#2c2c2c" stroke-width="1.5"/><circle cx="32" cy="32" r="26" fill="none" stroke="#262626" stroke-width="1"/><circle cx="32" cy="32" r="12" fill="#d93a2b"/><path d="M24 29c4 3 12 3 16 0M24 35c4-3 12-3 16 0" stroke="#fff" stroke-width="1.4" fill="none" stroke-dasharray="2 2"/><circle cx="32" cy="32" r="1.8" fill="#000"/></svg>',
@@ -96,7 +96,7 @@ const HR = (() => {
     el.outerHTML = `
     <header class="site-header">
       <div class="wrap hdr">
-        <a class="brand" href="/" aria-label="Homerun Records – Startseite">${ICON.logo}<span class="brand-name">Homerun<b>Records</b></span></a>
+        <a class="brand" href="/" aria-label="myrecords – Startseite">${ICON.logo}<span class="brand-name">my<b>records</b></span></a>
         <form class="search" action="/" role="search" id="hdr-search">
           <input name="q" value="${esc(q)}" placeholder="Künstler, Titel, Label, Katalognummer …" aria-label="Suche" autocomplete="off">
           <button aria-label="Suchen">${ICON.search}</button>
@@ -143,7 +143,7 @@ const HR = (() => {
     <footer class="site-footer">
       <div class="wrap">
         <div>
-          <a class="brand" href="/" style="margin-bottom:12px">${ICON.logo}<span class="brand-name">Homerun<b>Records</b></span></a>
+          <a class="brand" href="/" style="margin-bottom:12px">${ICON.logo}<span class="brand-name">my<b>records</b></span></a>
           <p style="max-width:380px;margin:0">Eine private Sammlung von rund 20.000 Schallplatten – Stück für Stück erfasst, ehrlich gradet und fair bepreist.</p>
         </div>
         <div>
@@ -161,7 +161,7 @@ const HR = (() => {
           <a href="#" data-cookie-open>Cookie-Hinweis</a>
         </div>
       </div>
-      <div class="legal">© ${new Date().getFullYear()} Homerun Records · Privatverkauf aus einer Plattensammlung · Endpreise zzgl. Versand</div>
+      <div class="legal">© ${new Date().getFullYear()} myrecords · Privatverkauf aus einer Plattensammlung · Endpreise zzgl. Versand</div>
     </footer>`;
   }
 

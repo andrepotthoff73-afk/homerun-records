@@ -1,4 +1,4 @@
-// Lokale Vorschau von Homerun Records – nur zum Ausprobieren auf dem eigenen Rechner.
+// Lokale Vorschau von myrecords – nur zum Ausprobieren auf dem eigenen Rechner.
 // Nutzt eine Datenbank im Arbeitsspeicher (PGlite) statt Neon. Daten gehen beim Beenden verloren.
 import http from 'node:http';
 import fs from 'node:fs';
@@ -9,7 +9,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const PORT = Number(process.env.PORT) || 4321;
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, '..');
-const app = path.join(os.tmpdir(), 'homerun-records-vorschau');
+const app = path.join(os.tmpdir(), 'myrecords-vorschau');
 
 // Projekt in einen Temp-Ordner kopieren und die Datenbank gegen PGlite tauschen
 fs.rmSync(app, { recursive: true, force: true });
@@ -64,7 +64,7 @@ for (const [i, d] of demo.entries()) {
 }
 
 // Demo-Kunde mit einer Beispielbestellung (nur Vorschau). Zugangsdaten stehen in der Konsole.
-const DEMO_EMAIL = 'demo@homerun.test';
+const DEMO_EMAIL = 'demo@myrecords.test';
 const DEMO_PW = 'demo-kunde-2026';
 {
   const { hashPassword } = await import(pathToFileURL(path.join(app, 'api', '_lib', 'kunde.js')));
@@ -112,7 +112,7 @@ http.createServer(async (req, res) => {
   }
 }).listen(PORT, () => {
   console.log('');
-  console.log('  Homerun Records Vorschau laeuft:');
+  console.log('  myrecords Vorschau laeuft:');
   console.log(`  Shop:  http://localhost:${PORT}/`);
   console.log(`  Admin: http://localhost:${PORT}/admin   (Passwort: ${process.env.ADMIN_PASSWORD})`);
   console.log(`  Kunde: http://localhost:${PORT}/konto   (Demo: ${DEMO_EMAIL} / ${DEMO_PW})`);

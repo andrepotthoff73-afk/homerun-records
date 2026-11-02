@@ -1,4 +1,4 @@
-// Homerun Records – Marktpreise für den Shop
+// myrecords – Marktpreise für den Shop
 // Holt sich die wartenden Platten vom Shop, öffnet für jede die Discogs-Verkaufsseite in einem echten
 // Browser (Microsoft Edge auf diesem PC), nimmt die ersten 10 Angebote von Verkäufern aus Deutschland,
 // füllt fehlende mit Angeboten aus anderen Ländern auf, bildet den Durchschnitt und meldet ihn an den Shop.

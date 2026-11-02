@@ -16,7 +16,7 @@
   unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 
-/* Homerun Records – Stylesheet */
+/* myrecords – Stylesheet */
 :root {
   --ink: #18181b;
   --ink-2: #52525b;
@@ -74,8 +74,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .hdr { display: flex; align-items: center; gap: 20px; height: 64px; }
 .brand { display: flex; align-items: center; gap: 10px; color: #fff; text-decoration: none !important; flex-shrink: 0; }
 .brand svg { width: 34px; height: 34px; }
-.brand-name { font-weight: 800; font-size: 1.12rem; letter-spacing: .02em; text-transform: uppercase; line-height: 1; }
-.brand-name b { color: var(--accent); font-weight: 800; margin-left: .25em; }
+.brand-name { font-weight: 800; font-size: 1.2rem; letter-spacing: .01em; line-height: 1; }
+.brand-name b { color: var(--accent); font-weight: 800; }
 .search { flex: 1; display: flex; max-width: 640px; background: #fff; border-radius: 6px; overflow: hidden; }
 .search input { flex: 1; border: 0; padding: 0 14px; height: 40px; min-width: 0; outline: none; color: var(--ink); }
 .search button { border: 0; background: var(--accent); color: #fff; width: 48px; cursor: pointer; display: grid; place-items: center; }

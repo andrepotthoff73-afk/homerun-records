@@ -18,7 +18,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // ---------- Nicht angemeldet ----------
   function guest(mode) {
-    document.title = 'Anmelden – Homerun Records';
+    document.title = 'Anmelden – myrecords';
     root.innerHTML = `
       <div class="auth">
         <div class="auth-card">
@@ -43,7 +43,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           </form>`}
         </div>
         <aside class="auth-info">
-          <h2>Dein Homerun-Konto</h2>
+          <h2>Dein myrecords-Konto</h2>
           <ul class="perks">
             <li>${ICON.check}<span><strong>Bestellübersicht</strong> – alle Käufe auf einen Blick</span></li>
             <li>${ICON.check}<span><strong>Merkliste</strong> – Platten vormerken und später kaufen</span></li>
@@ -79,7 +79,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ---------- Angemeldet ----------
   const TABS = [['overview', 'Übersicht'], ['orders', 'Bestellungen'], ['wishlist', 'Merkliste'], ['profile', 'Profil']];
   function member(tab) {
-    document.title = 'Mein Konto – Homerun Records';
+    document.title = 'Mein Konto – myrecords';
     root.innerHTML = `
       <div class="page-head"><h1>Hallo, ${esc(me.name.split(' ')[0])}!</h1><p class="muted" style="margin:0">${esc(me.email)}</p></div>
       <div class="member">

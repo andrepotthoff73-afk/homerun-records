@@ -52,8 +52,8 @@ async function createOrder(req, res) {
   const r = await paypal('/v2/checkout/orders', {
     intent: 'CAPTURE',
     purchase_units: [{
-      reference_id: 'homerun',
-      description: 'Homerun Records – Schallplatten',
+      reference_id: 'myrecords',
+      description: 'myrecords – Schallplatten',
       amount: {
         currency_code: 'EUR',
         value: money(itemCents + shipCents),
@@ -65,7 +65,7 @@ async function createOrder(req, res) {
       items,
     }],
     application_context: {
-      brand_name: 'Homerun Records',
+      brand_name: 'myrecords',
       locale: 'de-DE',
       shipping_preference: 'GET_FROM_FILE',
       user_action: 'PAY_NOW',

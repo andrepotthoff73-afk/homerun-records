@@ -2,7 +2,7 @@ import { db } from './db.js';
 import { blobConfigured } from './util.js';
 
 // Zugriff auf die Katalog-API (Token: DISCOGS_TOKEN). Dieser Code läuft nur auf dem Server.
-const UA = 'HomerunRecords/1.0';
+const UA = 'myrecords/1.0';
 const API = process.env.HR_DISCOGS_API || 'https://api.discogs.com';
 const PRICE_MAX_AGE = 30 * 864e5;
 export let rateRemaining = null;

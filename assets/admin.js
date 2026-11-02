@@ -2,7 +2,7 @@
 document.addEventListener('DOMContentLoaded', async () => {
   const { api, esc, eur, num, cover, toast, ICON } = HR;
   const $ = (id) => document.getElementById(id);
-  const brand = `${ICON.logo}<span class="brand-name">Homerun<b>Records</b></span>`;
+  const brand = `${ICON.logo}<span class="brand-name">my<b>records</b></span>`;
   $('login-brand').innerHTML = brand;
   $('bar-brand').innerHTML = brand;
 
