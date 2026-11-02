@@ -305,6 +305,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     const batch = csv.name.replace(/\.csv$/i, '');
     const BATCH = 400;
     const tot = { inserted: 0, updated: 0, skipped: 0, existing: 0, deleted: 0 };
+    gone.list = [];
+    gone.ctx = { batch, location, s };
     for (let i = 0; i < rows.length; i += BATCH) {
       const chunk = rows.slice(i, i + BATCH);
       let ok = false;
@@ -313,6 +315,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           const r = await call('/api/admin?action=import', { body: { rows: chunk, discount: s.discount, minPrice: s.minPrice, priceSource: s.priceSource, batch, location, auto: true } });
           tot.inserted += r.inserted; tot.updated += r.updated; tot.skipped += r.skipped;
           tot.existing += r.existing || 0; tot.deleted += r.deleted || 0;
+          for (const d of r.deletedRows || []) gone.list.push({ row: chunk[d.i], keys: d.keys });
           ok = true;
         } catch (e) {
           log.classList.remove('hidden');
@@ -337,8 +340,46 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Feld leeren, damit die nächste Liste nicht versehentlich in derselben Kiste landet
     $('location').value = '';
     loadLocations();
+    renderGone();
     await loadConditions();
   }
+
+  // ---------- Früher gelöschte Platten wieder aufnehmen ----------
+  const gone = { list: [], ctx: null };
+  function renderGone() {
+    $('gone-box').classList.toggle('hidden', !gone.list.length);
+    $('gone-n').textContent = gone.list.length ? `(${num(gone.list.length)})` : '';
+    $('gone-table').querySelector('tbody').innerHTML = gone.list.map((g, i) => `<tr>
+      <td><strong>${esc(g.row.artist)}</strong> – ${esc(g.row.title)}
+        <div class="small muted">${[g.row.label, g.row.catno, g.row.format, g.row.date_added ? `in Discogs hinzugefügt ${g.row.date_added}` : ''].filter(Boolean).map(esc).join(' · ')}</div></td>
+      <td style="text-align:right"><button class="btn btn-sm" data-gone="${i}">Neu erfassen</button></td>
+    </tr>`).join('');
+  }
+  async function restoreGone(items) {
+    if (!items.length) return;
+    const { batch, location, s } = gone.ctx || { s: settingsNow() };
+    try {
+      await call('/api/admin?action=undelete', { body: { keys: items.flatMap((g) => g.keys) } });
+      let n = 0;
+      for (let i = 0; i < items.length; i += 400) {
+        const r = await call('/api/admin?action=import', { body: { rows: items.slice(i, i + 400).map((g) => g.row), minPrice: s.minPrice, priceSource: s.priceSource, batch, location, auto: true } });
+        n += r.inserted;
+      }
+      gone.list = gone.list.filter((g) => !items.includes(g));
+      renderGone();
+      toast(`${num(n)} Platte(n) neu erfasst – bitte Zustand angeben`);
+      await loadConditions();
+    } catch (e) { toast(e.message); }
+  }
+  $('gone-table').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-gone]');
+    if (!b) return;
+    b.disabled = true;
+    restoreGone([gone.list[Number(b.dataset.gone)]]);
+  });
+  $('gone-all').addEventListener('click', () => {
+    if (confirm(`Alle ${gone.list.length} früher gelöschten Platten neu erfassen?`)) restoreGone([...gone.list]);
+  });
 
   // ---------- Lagerorte (Kisten) ----------
   async function loadLocations() {

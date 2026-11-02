@@ -28,6 +28,7 @@ export default async function handler(req, res) {
     if (action === 'market-recent') return await marketRecent(res);
     if (post && action === 'condition') return await setCondition(req, res);
     if (post && action === 'market-price') return await marketPrice(req, res);
+    if (post && action === 'undelete') return await undelete(req, res);
     if (post && action === 'settings') return send(res, 200, await saveSettings(cleanSettings(req.body)));
     if (post && action === 'import') return await importRows(req, res);
     if (post && action === 'update') return await update(req, res);
@@ -163,13 +164,13 @@ async function importRows(req, res) {
   const location = clean(req.body?.location, 120);
   if (auto) await saveSettings({ discount, minPrice, ...cleanSettings({ priceSource: req.body?.priceSource }) });
 
-  const cols = { key: [], ikey: [], rel: [], lst: [], artist: [], title: [], label: [], catno: [], format: [], released: [], genre: [],
+  const cols = { idx: [], key: [], ikey: [], rel: [], lst: [], artist: [], title: [], label: [], catno: [], format: [], released: [], genre: [],
     media: [], sleeve: [], descr: [], notes: [], avg: [], price: [], status: [], cover: [], batch: [], tracks: [], country: [] };
   const seen = new Set();
   const instCount = new Map();
   let skipped = 0;
 
-  for (const r of rows) {
+  for (const [rowIdx, r] of rows.entries()) {
     const artist = clean(r.artist), title = clean(r.title);
     if (!artist || !title) { skipped++; continue; }
     const rel = /^\d+$/.test(String(r.release_id ?? '').trim()) ? String(r.release_id).trim() : null;
@@ -196,7 +197,7 @@ async function importRows(req, res) {
     let price = avg ? Math.round(avg * (100 - discount)) / 100 : null;
     if (price != null && price < minPrice) price = minPrice;
 
-    cols.key.push(key); cols.ikey.push(ikey); cols.rel.push(rel); cols.lst.push(listing);
+    cols.idx.push(rowIdx); cols.key.push(key); cols.ikey.push(ikey); cols.rel.push(rel); cols.lst.push(listing);
     cols.artist.push(artist); cols.title.push(title); cols.label.push(clean(r.label)); cols.catno.push(clean(r.catno, 120));
     cols.format.push(clean(r.format)); cols.released.push(clean(r.released, 40)); cols.genre.push(clean(r.genre));
     cols.media.push(clean(r.media_condition, 80)); cols.sleeve.push(clean(r.sleeve_condition, 80));
@@ -209,6 +210,7 @@ async function importRows(req, res) {
 
   // „Platten erfassen“: nur NEUE Platten anlegen. Schon vorhandene (auch verkaufte) und gelöschte bleiben unberührt.
   let existing = 0, deleted = 0;
+  const deletedRows = []; // Zeilennummern (in dieser Sendung) früher gelöschter Platten, mit ihren Schlüsseln
   if (auto) {
     const sql = db();
     const ik = cols.ikey.filter(Boolean);
@@ -226,12 +228,16 @@ async function importRows(req, res) {
     }
     const keep = cols.key.map((k, i) => {
       const i2 = cols.ikey[i];
-      if (goneSet.has(k) || (i2 && goneSet.has(i2))) { deleted++; return false; }
+      if (goneSet.has(k) || (i2 && goneSet.has(i2))) {
+        deleted++;
+        deletedRows.push({ i: cols.idx[i], keys: [k, i2].filter(Boolean) });
+        return false;
+      }
       if (knownSet.has(k) || (i2 && knownSet.has(i2))) { existing++; return false; }
       return true;
     });
     for (const c of Object.keys(cols)) cols[c] = cols[c].filter((_, i) => keep[i]);
-    if (!cols.key.length) return send(res, 200, { inserted: 0, updated: 0, existing, deleted, skipped });
+    if (!cols.key.length) return send(res, 200, { inserted: 0, updated: 0, existing, deleted, deletedRows, skipped });
   }
 
   const result = await db().query(
@@ -266,7 +272,7 @@ async function importRows(req, res) {
       cols.media, cols.sleeve, cols.descr, cols.notes, cols.avg, cols.price, cols.status, cols.cover, cols.batch, cols.tracks, cols.country, auto, location, cols.ikey],
   );
   const inserted = result.filter((r) => r.inserted).length;
-  send(res, 200, { inserted, updated: result.length - inserted, existing, deleted, skipped });
+  send(res, 200, { inserted, updated: result.length - inserted, existing, deleted, deletedRows, skipped });
 }
 
 async function update(req, res) {
@@ -509,4 +515,12 @@ async function marketPrice(req, res) {
   // Release erst jetzt bekannt (Suche über Katalognummer) → Cover & Tracks nachladen
   if (!rec.release_id && foundRelease) await fetchCover({ id, release_id: foundRelease }).catch(() => {});
   send(res, 200, { id, avg, sale, note, ...rows[0] });
+}
+
+// Früher gelöschte Platten wieder zulassen: Merker entfernen, danach legt der Import sie neu an
+async function undelete(req, res) {
+  const keys = (Array.isArray(req.body?.keys) ? req.body.keys : []).map(String).filter((k) => /^[0-9a-f]{40}$/.test(k)).slice(0, 4000);
+  if (!keys.length) return send(res, 400, { error: 'Keine Platten angegeben.' });
+  const rows = await db().query(`DELETE FROM deleted_keys WHERE key = ANY($1::text[]) RETURNING key`, [keys]);
+  send(res, 200, { changed: rows.length });
 }

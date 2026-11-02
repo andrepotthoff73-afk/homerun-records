@@ -185,6 +185,15 @@
           <div class="small muted">Tastatur: Ziffern <b>1–8</b> wählen erst den Zustand der Platte, dann der Hülle (<b>9</b> = Generic, <b>0</b> = keine Hülle) · <b>Enter</b> = vorgeschlagenen Zustand übernehmen · <b>←</b> = zurück</div>
         </div>
 
+        <div class="card-box hidden" id="gone-box">
+          <div class="toolbar" style="justify-content:space-between;margin:0 0 6px">
+            <h2 style="margin:0">Früher gelöschte Platten <span class="muted small" id="gone-n"></span></h2>
+            <button class="btn btn-sm" id="gone-all">Alle neu erfassen</button>
+          </div>
+          <p class="small muted" style="margin-top:0">Diese Einträge deiner Discogs-Liste hast du im Shop schon einmal gelöscht, deshalb wurden sie übersprungen. Mit „Neu erfassen“ werden sie wieder angelegt (danach Zustand angeben). Ein zweites Exemplar, das du in Discogs neu hinzufügst, wird übrigens automatisch erfasst.</p>
+          <div class="table-wrap"><table class="t" id="gone-table"><tbody></tbody></table></div>
+        </div>
+
         <div class="card-box hidden" id="run-box">
           <div class="steps four">
             <div class="step" id="step-import">
