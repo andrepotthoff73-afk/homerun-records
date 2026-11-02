@@ -304,7 +304,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     $('run-box').scrollIntoView({ behavior: 'smooth', block: 'start' });
     const batch = csv.name.replace(/\.csv$/i, '');
     const BATCH = 400;
-    const tot = { inserted: 0, updated: 0, skipped: 0 };
+    const tot = { inserted: 0, updated: 0, skipped: 0, existing: 0, deleted: 0 };
     for (let i = 0; i < rows.length; i += BATCH) {
       const chunk = rows.slice(i, i + BATCH);
       let ok = false;
@@ -312,6 +312,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         try {
           const r = await call('/api/admin?action=import', { body: { rows: chunk, discount: s.discount, minPrice: s.minPrice, priceSource: s.priceSource, batch, location, auto: true } });
           tot.inserted += r.inserted; tot.updated += r.updated; tot.skipped += r.skipped;
+          tot.existing += r.existing || 0; tot.deleted += r.deleted || 0;
           ok = true;
         } catch (e) {
           log.classList.remove('hidden');
@@ -326,7 +327,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     importing = false;
     setStep('step-import', 'done');
-    $('import-text').textContent = `${num(tot.inserted)} neu, ${num(tot.updated)} aktualisiert${tot.skipped ? `, ${num(tot.skipped)} übersprungen` : ''} · Lagerort: ${location || 'keiner'}`;
+    $('import-text').textContent = `${num(tot.inserted)} neu angelegt`
+      + (tot.existing ? ` · ${num(tot.existing)} schon im Shop (übersprungen)` : '')
+      + (tot.deleted ? ` · ${num(tot.deleted)} früher gelöscht (übersprungen)` : '')
+      + (tot.skipped ? ` · ${num(tot.skipped)} ungültig/doppelt` : '')
+      + ` · Lagerort: ${location || 'keiner'}`;
+    if (!tot.inserted) toast(`Keine neuen Platten in dieser Liste – ${num(tot.existing)} sind schon im Shop.`);
+    else toast(`${num(tot.inserted)} neue Platte(n) – ${num(tot.existing)} schon vorhandene übersprungen`);
     // Feld leeren, damit die nächste Liste nicht versehentlich in derselben Kiste landet
     $('location').value = '';
     loadLocations();

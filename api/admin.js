@@ -163,9 +163,10 @@ async function importRows(req, res) {
   const location = clean(req.body?.location, 120);
   if (auto) await saveSettings({ discount, minPrice, ...cleanSettings({ priceSource: req.body?.priceSource }) });
 
-  const cols = { key: [], rel: [], lst: [], artist: [], title: [], label: [], catno: [], format: [], released: [], genre: [],
+  const cols = { key: [], ikey: [], rel: [], lst: [], artist: [], title: [], label: [], catno: [], format: [], released: [], genre: [],
     media: [], sleeve: [], descr: [], notes: [], avg: [], price: [], status: [], cover: [], batch: [], tracks: [], country: [] };
   const seen = new Set();
+  const instCount = new Map();
   let skipped = 0;
 
   for (const r of rows) {
@@ -179,12 +180,23 @@ async function importRows(req, res) {
     const key = crypto.createHash('sha1').update(ident).digest('hex');
     if (seen.has(key)) { skipped++; continue; }
     seen.add(key);
+    // Zweiter, stabiler Schlüssel je Exemplar: Release-ID + Datum „hinzugefügt“ (ändert sich nicht,
+    // wenn du in Discogs Zustand oder Notiz eines Exemplars nachträgst)
+    const added = String(r.date_added ?? '').trim();
+    let ikey = null;
+    if (listing) ikey = crypto.createHash('sha1').update(`IL:${listing}`).digest('hex');
+    else if (rel && added) {
+      const base = `${rel}|${added}`;
+      const n = instCount.get(base) || 0;
+      instCount.set(base, n + 1);
+      ikey = crypto.createHash('sha1').update(`I:${base}|${n}`).digest('hex');
+    }
 
     const avg = posNum(r.avg_price);
     let price = avg ? Math.round(avg * (100 - discount)) / 100 : null;
     if (price != null && price < minPrice) price = minPrice;
 
-    cols.key.push(key); cols.rel.push(rel); cols.lst.push(listing);
+    cols.key.push(key); cols.ikey.push(ikey); cols.rel.push(rel); cols.lst.push(listing);
     cols.artist.push(artist); cols.title.push(title); cols.label.push(clean(r.label)); cols.catno.push(clean(r.catno, 120));
     cols.format.push(clean(r.format)); cols.released.push(clean(r.released, 40)); cols.genre.push(clean(r.genre));
     cols.media.push(clean(r.media_condition, 80)); cols.sleeve.push(clean(r.sleeve_condition, 80));
@@ -195,15 +207,42 @@ async function importRows(req, res) {
   }
   if (!cols.key.length) return send(res, 200, { inserted: 0, updated: 0, skipped });
 
+  // „Platten erfassen“: nur NEUE Platten anlegen. Schon vorhandene (auch verkaufte) und gelöschte bleiben unberührt.
+  let existing = 0, deleted = 0;
+  if (auto) {
+    const sql = db();
+    const ik = cols.ikey.filter(Boolean);
+    const known = await sql.query(
+      `SELECT import_key, instance_key FROM records WHERE import_key = ANY($1::text[]) OR instance_key = ANY($2::text[])`,
+      [cols.key, ik]);
+    const gone = await sql.query(`SELECT key FROM deleted_keys WHERE key = ANY($1::text[])`, [[...cols.key, ...ik]]);
+    const knownSet = new Set(known.flatMap((r) => [r.import_key, r.instance_key]).filter(Boolean));
+    const goneSet = new Set(gone.map((r) => r.key));
+    // Fehlenden Exemplar-Schlüssel bei vorhandenen Platten nachtragen (für künftige Abgleiche)
+    const fill = cols.key.map((k, i) => [k, cols.ikey[i]]).filter(([k, i]) => i && knownSet.has(k) && !knownSet.has(i));
+    if (fill.length) {
+      await sql.query(`UPDATE records r SET instance_key = t.ik FROM unnest($1::text[], $2::text[]) AS t(k, ik)
+        WHERE r.import_key = t.k AND r.instance_key IS NULL`, [fill.map((f) => f[0]), fill.map((f) => f[1])]);
+    }
+    const keep = cols.key.map((k, i) => {
+      const i2 = cols.ikey[i];
+      if (goneSet.has(k) || (i2 && goneSet.has(i2))) { deleted++; return false; }
+      if (knownSet.has(k) || (i2 && knownSet.has(i2))) { existing++; return false; }
+      return true;
+    });
+    for (const c of Object.keys(cols)) cols[c] = cols[c].filter((_, i) => keep[i]);
+    if (!cols.key.length) return send(res, 200, { inserted: 0, updated: 0, existing, deleted, skipped });
+  }
+
   const result = await db().query(
-    `INSERT INTO records (import_key, release_id, listing_id, artist, title, label, catno, format, released, genre,
+    `INSERT INTO records (import_key, instance_key, release_id, listing_id, artist, title, label, catno, format, released, genre,
        media_condition, sleeve_condition, description, notes, avg_price, price, status, cover_url, thumb_url, batch, tracks, country, enrich_status, location)
-     SELECT k, rel, lst, artist, title, label, catno, format, released, genre, media, sleeve, descr, notes, avg, price, status, cover, cover, batch, tracks, country,
+     SELECT k, ik, rel, lst, artist, title, label, catno, format, released, genre, media, sleeve, descr, notes, avg, price, status, cover, cover, batch, tracks, country,
             CASE WHEN $22::boolean THEN 'needcond' END, $23::text
      FROM unnest($1::text[], $2::bigint[], $3::text[], $4::text[], $5::text[], $6::text[], $7::text[], $8::text[], $9::text[],
                  $10::text[], $11::text[], $12::text[], $13::text[], $14::text[], $15::numeric[], $16::numeric[], $17::text[],
-                 $18::text[], $19::text[], $20::text[], $21::text[])
-       AS t(k, rel, lst, artist, title, label, catno, format, released, genre, media, sleeve, descr, notes, avg, price, status, cover, batch, tracks, country)
+                 $18::text[], $19::text[], $20::text[], $21::text[], $24::text[])
+       AS t(k, rel, lst, artist, title, label, catno, format, released, genre, media, sleeve, descr, notes, avg, price, status, cover, batch, tracks, country, ik)
      ON CONFLICT (import_key) DO UPDATE SET
        avg_price = coalesce(EXCLUDED.avg_price, records.avg_price),
        price = CASE WHEN records.status IN ('sold', 'reserved') OR records.price_locked THEN records.price
@@ -220,13 +259,14 @@ async function importRows(req, res) {
        country = coalesce(EXCLUDED.country, records.country),
        enrich_status = CASE WHEN $22::boolean AND records.status NOT IN ('sold', 'reserved') THEN 'needcond' ELSE records.enrich_status END,
        location = coalesce(EXCLUDED.location, records.location),
+       instance_key = coalesce(records.instance_key, EXCLUDED.instance_key),
        updated_at = now()
      RETURNING (xmax = 0) AS inserted`,
     [cols.key, cols.rel, cols.lst, cols.artist, cols.title, cols.label, cols.catno, cols.format, cols.released, cols.genre,
-      cols.media, cols.sleeve, cols.descr, cols.notes, cols.avg, cols.price, cols.status, cols.cover, cols.batch, cols.tracks, cols.country, auto, location],
+      cols.media, cols.sleeve, cols.descr, cols.notes, cols.avg, cols.price, cols.status, cols.cover, cols.batch, cols.tracks, cols.country, auto, location, cols.ikey],
   );
   const inserted = result.filter((r) => r.inserted).length;
-  send(res, 200, { inserted, updated: result.length - inserted, skipped });
+  send(res, 200, { inserted, updated: result.length - inserted, existing, deleted, skipped });
 }
 
 async function update(req, res) {
@@ -248,7 +288,10 @@ async function update(req, res) {
     const location = clean(req.body?.location, 120);
     rows = await sql.query(`UPDATE records SET location = $2, updated_at = now() WHERE id = ANY($1::int[]) RETURNING id`, [ids, location]);
   } else if (op === 'delete') {
-    rows = await sql.query(`DELETE FROM records WHERE id = ANY($1::int[]) RETURNING id`, [ids]);
+    rows = await sql.query(`DELETE FROM records WHERE id = ANY($1::int[]) RETURNING id, import_key, instance_key`, [ids]);
+    // Gelöschte Platten merken, damit sie beim nächsten Import derselben Discogs-Liste nicht wieder auftauchen
+    const keys = rows.flatMap((r) => [r.import_key, r.instance_key]).filter(Boolean);
+    if (keys.length) await sql.query(`INSERT INTO deleted_keys (key) SELECT unnest($1::text[]) ON CONFLICT DO NOTHING`, [keys]);
   } else if (op === 'price') {
     const price = posNum(req.body?.price);
     if (!price) return send(res, 400, { error: 'Ungültiger Preis.' });

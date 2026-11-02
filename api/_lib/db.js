@@ -52,6 +52,14 @@ const SCHEMA = [
   `ALTER TABLE records ADD COLUMN IF NOT EXISTS location text`,
   // Marktpreis aus den ersten 10 Angeboten (vom Preis-Tool auf dem PC ermittelt)
   `ALTER TABLE records ADD COLUMN IF NOT EXISTS market_offers jsonb`,
+  // Wiedererkennung beim erneuten Import derselben Discogs-Liste: Release-ID + „Date Added“ je Exemplar
+  `ALTER TABLE records ADD COLUMN IF NOT EXISTS instance_key text`,
+  `CREATE INDEX IF NOT EXISTS records_instance_idx ON records (instance_key)`,
+  // Gelöschte Platten merken, damit sie beim nächsten Import nicht wieder auftauchen
+  `CREATE TABLE IF NOT EXISTS deleted_keys (
+    key        text PRIMARY KEY,
+    deleted_at timestamptz NOT NULL DEFAULT now()
+  )`,
   `CREATE TABLE IF NOT EXISTS app_settings (
     key   text PRIMARY KEY,
     value jsonb NOT NULL
