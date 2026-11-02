@@ -62,7 +62,7 @@ async function stats(res) {
   const sql = db();
   const settings = await loadSettings();
   const api = settings.priceSource !== 'market';
-  const [byStatus, ord, covers, enrich] = await Promise.all([
+  const [byStatus, ord, covers, enrich, soldPeriods, stock] = await Promise.all([
     sql.query(`SELECT status, count(*)::int AS n, coalesce(sum(price), 0)::float AS value FROM records GROUP BY status`),
     sql.query(`SELECT count(*)::int AS n, coalesce(sum(total), 0)::float AS revenue FROM orders WHERE status = 'completed'`),
     sql.query(`SELECT count(*)::int AS n FROM records WHERE (cover_url IS NULL OR tracks IS NULL) AND release_id IS NOT NULL`),
@@ -73,6 +73,17 @@ async function stats(res) {
       count(*) FILTER (WHERE enrich_status = 'pending')::int AS pending_only,
       max(updated_at) FILTER (WHERE enrich_status = 'done' AND market_offers IS NOT NULL) AS last_market,
       count(*) FILTER (WHERE enrich_status = 'done' AND enrich_note ILIKE '%Preisvorschläge%' AND status NOT IN ('sold', 'reserved'))::int AS nosugg FROM records`),
+    // Verkäufe im letzten Monat / 3 Monaten / halben Jahr (Anzahl und Umsatz)
+    sql.query(`SELECT
+      count(*) FILTER (WHERE sold_at > now() - interval '1 month')::int AS n1,
+      coalesce(sum(price) FILTER (WHERE sold_at > now() - interval '1 month'), 0)::float AS v1,
+      count(*) FILTER (WHERE sold_at > now() - interval '3 months')::int AS n3,
+      coalesce(sum(price) FILTER (WHERE sold_at > now() - interval '3 months'), 0)::float AS v3,
+      count(*) FILTER (WHERE sold_at > now() - interval '6 months')::int AS n6,
+      coalesce(sum(price) FILTER (WHERE sold_at > now() - interval '6 months'), 0)::float AS v6
+      FROM records WHERE status = 'sold'`),
+    // Warenwert insgesamt: alle noch nicht verkauften Platten mit Preis
+    sql.query(`SELECT coalesce(sum(price), 0)::float AS v, count(*)::int AS n FROM records WHERE status <> 'sold' AND price IS NOT NULL`),
   ]);
   const s = Object.fromEntries(byStatus.map((r) => [r.status, r]));
   send(res, 200, {
@@ -85,6 +96,10 @@ async function stats(res) {
     orders: ord[0].n,
     revenue: ord[0].revenue,
     missingCovers: covers[0].n,
+    stockValue: stock[0].v, stockCount: stock[0].n,
+    sold1m: soldPeriods[0].n1, soldValue1m: soldPeriods[0].v1,
+    sold3m: soldPeriods[0].n3, soldValue3m: soldPeriods[0].v3,
+    sold6m: soldPeriods[0].n6, soldValue6m: soldPeriods[0].v6,
     // Bei Preisquelle „API“ werden auch Platten aus der Preis-Tool-Warteschlange direkt bepreist
     enrichPending: api ? enrich[0].pending + enrich[0].market : enrich[0].pending,
     enrichErrors: enrich[0].errors,

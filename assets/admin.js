@@ -714,7 +714,21 @@ document.addEventListener('DOMContentLoaded', async () => {
   const rec = { page: 1, items: [], selected: new Set(), total: 0 };
   const STATUS = { available: 'Verfügbar', draft: 'Entwurf', reserved: 'Reserviert', sold: 'Verkauft' };
 
-  loaders.records = () => { loadLocations(); loadRecords(); };
+  loaders.records = () => { loadLocations(); loadRecords(); loadRecordStats(); };
+
+  // Kleine Statistik oben: Bestand, Warenwert, Verkäufe der letzten 1 / 3 / 6 Monate
+  async function loadRecordStats() {
+    try {
+      const s = await call('/api/admin?action=stats');
+      $('rec-kpis').innerHTML = [
+        ['Platten im Shop', num(s.available), s.draft ? `+ ${num(s.draft)} Entwürfe` : 'online'],
+        ['Warenwert insgesamt', eur(s.stockValue), `${num(s.stockCount)} unverkaufte Platten mit Preis`],
+        ['Verkauft – letzter Monat', num(s.sold1m), `Umsatz ${eur(s.soldValue1m)}`],
+        ['Verkauft – 3 Monate', num(s.sold3m), `Umsatz ${eur(s.soldValue3m)}`],
+        ['Verkauft – 6 Monate', num(s.sold6m), `Umsatz ${eur(s.soldValue6m)}`],
+      ].map(([k, v, sub]) => `<div class="kpi"><span>${k}</span><b>${v}</b><small>${sub}</small></div>`).join('');
+    } catch { /* Statistik ist optional */ }
+  }
   $('rec-filter').addEventListener('submit', (e) => { e.preventDefault(); rec.page = 1; loadRecords(); });
   $('rec-filter').addEventListener('change', (e) => { if (e.target.tagName === 'SELECT') { rec.page = 1; loadRecords(); } });
 
@@ -823,6 +837,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     try {
       const r = await call('/api/admin?action=update', { body: { op, ids, ...extra } });
       const labels = { sold: 'als verkauft markiert', available: 'wieder verfügbar', draft: 'versteckt', delete: 'gelöscht', enrich: 'werden neu ermittelt', location: 'mit neuem Lagerort gespeichert' };
+      loadRecordStats();
       toast(`${r.changed} Platte(n) ${labels[op] || 'geändert'}${op === 'available' && r.changed < ids.length ? ' (ohne Preis bleiben versteckt)' : ''}`);
       loadRecords();
       if (op === 'enrich' && r.changed) startEnrich();
