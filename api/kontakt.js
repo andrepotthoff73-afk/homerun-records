@@ -47,7 +47,7 @@ export default async function handler(req, res) {
           auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
         });
         await tx.sendMail({
-          from: { name: 'myrecords Kontaktformular', address: process.env.SMTP_FROM || process.env.SMTP_USER },
+          from: { name: 'myrecords Kontaktformular', address: process.env.SMTP_FROM || (process.env.SMTP_USER.includes('@') ? process.env.SMTP_USER : TO) },
           to: TO,
           replyTo: { name, address: email },
           subject: `Kontaktformular: ${subject || 'Neue Nachricht'}`,
