@@ -115,6 +115,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   let sdk;
+  let payStarted = false;
   function loadSdk() {
     if (sdk) return sdk;
     sdk = new Promise((resolve, reject) => {
@@ -133,6 +134,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       box.innerHTML = '<div class="notice warn">Die Bezahlung ist gerade noch nicht freigeschaltet.</div>';
       return;
     }
+    // PayPal erst nach Klick laden (keine Datenübertragung an PayPal beim bloßen Ansehen des Warenkorbs)
+    if (!payStarted) {
+      box.innerHTML = `<button type="button" class="btn btn-primary" id="pay-start" style="width:100%">Zur Kasse – mit PayPal bezahlen</button>
+        <p class="small muted" style="margin:6px 0 0">Erst mit diesem Klick werden die Bezahlknöpfe von PayPal geladen. Dabei werden Daten (z.&nbsp;B. deine IP-Adresse) an PayPal übertragen – siehe <a href="/rechtliches#datenschutz">Datenschutz</a>.</p>`;
+      box.querySelector('#pay-start').addEventListener('click', () => { payStarted = true; mountPayPal(); });
+      return;
+    }
+    box.innerHTML = '<div class="small muted">PayPal wird geladen …</div>';
     try { await loadSdk(); } catch (e) { box.innerHTML = `<div class="notice err">${esc(e.message)}</div>`; return; }
     box.innerHTML = '';
     window.paypal.Buttons({

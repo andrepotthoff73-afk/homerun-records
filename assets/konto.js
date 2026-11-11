@@ -39,7 +39,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             <label class="field">Passwort <span class="muted" style="font-weight:400">(mind. 8 Zeichen)</span><input class="input" type="password" name="password" autocomplete="new-password" minlength="8" required></label>
             <div id="msg"></div>
             <button class="btn btn-primary btn-lg btn-block">Konto erstellen</button>
-            <p class="small muted" style="margin:0">Mit dem Erstellen stimmst du unserer <a href="/rechtliches#datenschutz">Datenschutzerklärung</a> zu.</p>
+            <p class="small muted" style="margin:0">Informationen dazu, wie wir deine Daten verarbeiten, findest du in der <a href="/rechtliches#datenschutz">Datenschutzerklärung</a>.</p>
           </form>`}
         </div>
         <aside class="auth-info">
