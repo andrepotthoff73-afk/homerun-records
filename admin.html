@@ -135,6 +135,7 @@
       <button data-tab="import">Platten erfassen <span class="badge hidden" id="enrich-badge" data-n="1">0</span></button>
       <button data-tab="records">Platten &amp; Verkauft</button>
       <button data-tab="orders">Bestellungen</button>
+      <button data-tab="messages">Nachrichten</button>
       <button data-tab="tools">Werkzeuge</button>
     </div></nav>
 
@@ -290,6 +291,12 @@
       <!-- Bestellungen -->
       <section class="panel hidden" data-panel="orders">
         <div class="table-wrap"><table class="t" id="orders"></table></div>
+      </section>
+
+      <!-- Nachrichten aus dem Kontaktformular -->
+      <section class="panel hidden" data-panel="messages">
+        <p class="small muted" style="margin:0 0 12px">Nachrichten aus dem Kontaktformular im Impressum. Sie werden zusätzlich per E-Mail an info@myrecords.online geschickt, sobald der Mailversand (SMTP) in Vercel eingerichtet ist.</p>
+        <div class="table-wrap"><table class="t" id="messages"></table></div>
       </section>
 
       <!-- Werkzeuge -->

@@ -8,6 +8,7 @@
   <link rel="preload" href="/assets/fonts/inter-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/assets/style.css">
   <script src="/assets/common.js"></script>
+  <script src="/assets/kontakt.js" defer></script>
   <style>.prose .fine { font-size: .72rem; color: var(--ink-3); margin-top: 4px; }</style>
 </head>
 <body>
@@ -42,12 +43,26 @@
 
     <h2 id="impressum">Impressum</h2>
     <p>Angaben gemäß § 5 DDG:</p>
-    <p>Axel Michael Weyand<br>myrecords<br>c/o Agentur Weyand<br>Baerler Str. 62<br>47441 Moers</p>
-    <p>E-Mail: <a href="mailto:info@agentur-weyand.de">info@agentur-weyand.de</a></p>
+    <p>Axel Michael Weyand<br>Baerler Str. 62<br>47441 Moers</p>
+    <p>E-Mail: <a href="mailto:info@myrecords.online">info@myrecords.online</a><br>Kontaktformular: <a href="#kontakt">siehe unten</a></p>
     <p>Verantwortlich für den Inhalt: Axel Michael Weyand, Anschrift wie oben.</p>
-    <p>myrecords ist ein privater Verkauf aus einer Plattensammlung und kein Gewerbebetrieb.</p>
+    <p>Diese Website dient dem Verkauf meiner privaten Schallplattensammlung. Ich verkaufe als Privatperson, nicht gewerblich.</p>
+
+    <h3 id="kontakt">Kontaktformular</h3>
+    <form id="kontakt-form" class="kontakt-form" novalidate>
+      <label class="field">Name<input class="input" name="name" autocomplete="name" maxlength="100" required></label>
+      <label class="field">E-Mail<input class="input" type="email" name="email" autocomplete="email" maxlength="200" required></label>
+      <label class="field">Betreff <span class="muted">(optional)</span><input class="input" name="subject" maxlength="150"></label>
+      <label class="field">Nachricht<textarea class="input" name="message" rows="6" maxlength="5000" required></textarea></label>
+      <div aria-hidden="true" style="position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden"><label>Website<input name="website" tabindex="-1" autocomplete="off"></label></div>
+      <input type="hidden" name="t">
+      <p class="small muted" style="margin:0">Deine Angaben werden nur zur Beantwortung deiner Nachricht verwendet. Mehr dazu in der <a href="#datenschutz">Datenschutzerklärung</a> (Abschnitt 9).</p>
+      <div id="kontakt-msg"></div>
+      <div><button type="submit" class="btn btn-primary">Nachricht senden</button></div>
+    </form>
+
     <h3>Verbraucherstreitbeilegung / Universalschlichtungsstelle</h3>
-    <p>Wir sind nicht bereit oder verpflichtet, an Streitbeilegungsverfahren vor einer Verbraucherschlichtungsstelle teilzunehmen.</p>
+    <p>Ich bin nicht bereit oder verpflichtet, an Streitbeilegungsverfahren vor einer Verbraucherschlichtungsstelle teilzunehmen.</p>
 
     <h2 id="datenschutz">Datenschutzerklärung</h2>
     <p class="muted small">Stand: Oktober 2026</p>
@@ -55,7 +70,7 @@
 
     <h3>1. Verantwortlicher</h3>
     <p>Verantwortlich für die Datenverarbeitung auf dieser Website im Sinne der Datenschutz-Grundverordnung (DSGVO) ist:</p>
-    <p class="address-box">Axel Michael Weyand<br>myrecords<br>c/o Agentur Weyand<br>Baerler Str. 62<br>47441 Moers<br>E-Mail: <a href="mailto:info@agentur-weyand.de">info@agentur-weyand.de</a></p>
+    <p class="address-box">Axel Michael Weyand<br>Baerler Str. 62<br>47441 Moers<br>E-Mail: <a href="mailto:info@myrecords.online">info@myrecords.online</a></p>
     <p>Ein Datenschutzbeauftragter ist nicht bestellt, da die gesetzlichen Voraussetzungen dafür nicht vorliegen. Bei Fragen zum Datenschutz wenden Sie sich bitte an die oben genannte Adresse.</p>
 
     <h3>2. Rechtsgrundlagen</h3>
@@ -101,15 +116,15 @@
     <p>Sie können ein Kundenkonto anlegen. Dabei speichern wir Ihren <strong>Namen</strong>, Ihre <strong>E-Mail-Adresse</strong>, Ihr <strong>Passwort</strong> (nur als verschlüsselter Hash-Wert, nicht im Klartext), Ihre <strong>Merkliste</strong>, den Zeitpunkt der Registrierung und der letzten Anmeldung sowie die Zuordnung Ihrer Bestellungen. Eine Lieferadresse wird im Konto nicht gespeichert – sie kommt bei jeder Bestellung aus PayPal.</p>
     <p>Rechtsgrundlage ist Art. 6 Abs. 1 lit. b DSGVO. Sie können Ihr Konto jederzeit unter „Mein Konto → Profil“ selbst löschen. Dabei werden Ihre Kontodaten und Ihre Merkliste gelöscht; Bestellungen bleiben für die unten genannte Dauer erhalten, sind aber nicht mehr mit einem Konto verknüpft.</p>
 
-    <h3>9. Kontakt per E-Mail</h3>
-    <p>Wenn Sie uns per E-Mail kontaktieren, verarbeiten wir Ihre Angaben (E-Mail-Adresse, Name, Inhalt der Nachricht), um Ihre Anfrage zu bearbeiten. Rechtsgrundlage ist Art. 6 Abs. 1 lit. b DSGVO, sofern Ihre Anfrage mit einem Vertrag zusammenhängt, ansonsten Art. 6 Abs. 1 lit. f DSGVO.</p>
+    <h3>9. Kontakt per E-Mail und Kontaktformular</h3>
+    <p>Wenn Sie uns per E-Mail oder über das Kontaktformular im Impressum kontaktieren, verarbeiten wir Ihre Angaben (Name, E-Mail-Adresse, Betreff, Inhalt der Nachricht), um Ihre Anfrage zu bearbeiten. Nachrichten aus dem Kontaktformular werden in der Datenbank des Shops gespeichert und per E-Mail an info@myrecords.online weitergeleitet. Zum Schutz vor Missbrauch speichern wir außerdem einen nicht rückrechenbaren Prüfwert (Hash) Ihrer IP-Adresse, um zu viele Nachrichten von derselben Adresse zu begrenzen. Rechtsgrundlage ist Art. 6 Abs. 1 lit. b DSGVO, sofern Ihre Anfrage mit einem Vertrag zusammenhängt, ansonsten Art. 6 Abs. 1 lit. f DSGVO.</p>
 
     <h3>10. Speicherdauer</h3>
     <ul>
       <li><strong>Server-Logfiles:</strong> nur kurzzeitig, sie werden automatisch gelöscht.</li>
       <li><strong>Kundenkonto:</strong> bis Sie es löschen.</li>
       <li><strong>Bestelldaten:</strong> bis zum Ablauf der regelmäßigen Verjährungsfrist für Ansprüche aus dem Kaufvertrag (3 Jahre ab Ende des Jahres der Bestellung, §§ 195, 199 BGB), um Rückfragen, Beanstandungen und Retouren bearbeiten zu können (Art. 6 Abs. 1 lit. b und f DSGVO). Danach werden sie gelöscht, sofern keine gesetzliche Pflicht zur längeren Aufbewahrung besteht.</li>
-      <li><strong>E-Mail-Anfragen:</strong> bis Ihr Anliegen erledigt ist, sofern keine Aufbewahrungspflicht besteht.</li>
+      <li><strong>E-Mail- und Kontaktformular-Anfragen:</strong> bis Ihr Anliegen erledigt ist, sofern keine Aufbewahrungspflicht besteht.</li>
       <li><strong>Warenkorb im Browser:</strong> bis Sie ihn leeren oder Ihre Browserdaten löschen.</li>
     </ul>
 
@@ -124,7 +139,7 @@
       <li><strong>Widerruf</strong> einer erteilten Einwilligung mit Wirkung für die Zukunft (Art. 7 Abs. 3 DSGVO).</li>
     </ul>
     <p><strong>Widerspruchsrecht (Art. 21 DSGVO):</strong> Soweit wir Daten auf Grundlage von Art. 6 Abs. 1 lit. f DSGVO verarbeiten, können Sie aus Gründen, die sich aus Ihrer besonderen Situation ergeben, jederzeit Widerspruch gegen die Verarbeitung einlegen.</p>
-    <p>Zur Ausübung Ihrer Rechte genügt eine formlose Nachricht an <a href="mailto:info@agentur-weyand.de">info@agentur-weyand.de</a>.</p>
+    <p>Zur Ausübung Ihrer Rechte genügt eine formlose Nachricht an <a href="mailto:info@myrecords.online">info@myrecords.online</a> oder über das <a href="#kontakt">Kontaktformular</a>.</p>
     <p><strong>Beschwerderecht:</strong> Sie haben das Recht, sich bei einer Datenschutz-Aufsichtsbehörde zu beschweren. Für uns zuständig ist die Landesbeauftragte für Datenschutz und Informationsfreiheit Nordrhein-Westfalen, Kavalleriestraße 2–4, 40213 Düsseldorf, <a href="https://www.ldi.nrw.de" target="_blank" rel="noopener">www.ldi.nrw.de</a>.</p>
 
     <h3>12. Keine automatisierte Entscheidungsfindung</h3>

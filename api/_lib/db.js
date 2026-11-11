@@ -104,6 +104,18 @@ const SCHEMA = [
   )`,
   `ALTER TABLE orders ADD COLUMN IF NOT EXISTS customer_id int`,
   `ALTER TABLE orders ADD COLUMN IF NOT EXISTS ship_country text`,
+  // Nachrichten aus dem Kontaktformular (Sicherung, falls der Mailversand ausfällt)
+  `CREATE TABLE IF NOT EXISTS messages (
+    id         serial PRIMARY KEY,
+    name       text NOT NULL,
+    email      text NOT NULL,
+    subject    text,
+    body       text NOT NULL,
+    ip_hash    text,
+    mailed     boolean NOT NULL DEFAULT false,
+    created_at timestamptz NOT NULL DEFAULT now()
+  )`,
+  `CREATE INDEX IF NOT EXISTS messages_ip_idx ON messages (ip_hash, created_at)`,
 ];
 
 let ready;

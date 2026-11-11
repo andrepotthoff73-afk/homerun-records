@@ -377,3 +377,7 @@ a.kpi-card:hover { border-color: var(--ink-3); }
 .chip.active .n { color: #c9c9cf; }
 .more-link { border: 0; background: none; padding: 6px 0 0; color: var(--link); font-size: .84rem; cursor: pointer; }
 .more-link:hover { text-decoration: underline; }
+
+/* Kontaktformular im Impressum */
+.kontakt-form { display: grid; gap: 12px; max-width: 560px; margin: 8px 0 24px; position: relative; }
+.kontakt-form textarea.input { resize: vertical; min-height: 120px; }

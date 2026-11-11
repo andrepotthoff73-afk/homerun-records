@@ -22,6 +22,8 @@ export default async function handler(req, res) {
     if (action === 'stats') return await stats(res);
     if (action === 'records') return await records(req, res);
     if (action === 'orders') return await orders(res);
+    if (action === 'messages') return send(res, 200, { items: await db().query('SELECT id, name, email, subject, body, mailed, created_at FROM messages ORDER BY created_at DESC LIMIT 200') });
+    if (post && action === 'message-delete') { await db().query('DELETE FROM messages WHERE id = $1', [parseInt(req.body?.id, 10) || 0]); return send(res, 200, { ok: true }); }
     if (action === 'locations') return await locations(res);
     if (action === 'needcond') return await needCondition(res);
     if (action === 'market-next') return await marketNext(req, res);

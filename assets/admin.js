@@ -882,6 +882,30 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   };
 
+  // ---------- Nachrichten ----------
+  loaders.messages = async () => {
+    const t = $('messages');
+    t.innerHTML = '<tbody><tr><td class="muted">Lade …</td></tr></tbody>';
+    try {
+      const { items } = await call('/api/admin?action=messages');
+      if (!items.length) { t.innerHTML = '<tbody><tr><td class="muted" style="padding:24px">Noch keine Nachrichten.</td></tr></tbody>'; return; }
+      t.innerHTML = `<thead><tr><th>Datum</th><th>Absender</th><th>Nachricht</th><th></th></tr></thead>
+        <tbody>${items.map((m) => `<tr>
+          <td class="small">${new Date(m.created_at).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' })}<div class="muted">${m.mailed ? 'per Mail gesendet' : 'nicht gemailt'}</div></td>
+          <td class="small"><strong>${esc(m.name)}</strong><br><a href="mailto:${esc(m.email)}?subject=${encodeURIComponent('Re: ' + (m.subject || 'deine Nachricht'))}">${esc(m.email)}</a></td>
+          <td class="small">${m.subject ? `<strong>${esc(m.subject)}</strong><br>` : ''}<span style="white-space:pre-wrap">${esc(m.body)}</span></td>
+          <td><button class="btn btn-sm" data-msg-del="${m.id}">Löschen</button></td>
+        </tr>`).join('')}</tbody>`;
+    } catch (e) {
+      t.innerHTML = `<tbody><tr><td><div class="notice err">${esc(e.message)}</div></td></tr></tbody>`;
+    }
+  };
+  $('messages').addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-msg-del]');
+    if (!b || !confirm('Nachricht löschen?')) return;
+    try { await call('/api/admin?action=message-delete', { body: { id: Number(b.dataset.msgDel) } }); loaders.messages(); } catch (err) { toast(err.message); }
+  });
+
   // ---------- Werkzeuge ----------
   $('reprice').addEventListener('click', async () => {
     if (!confirm('Alle automatischen Preise auf den Ø-Marktpreis setzen (ohne Rabatt)?')) return;

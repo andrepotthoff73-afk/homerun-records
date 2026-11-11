@@ -26,7 +26,7 @@ fs.symlinkSync(path.join(here, 'node_modules'), path.join(app, 'node_modules'), 
 
 process.env.ADMIN_PASSWORD ||= 'vorschau12345';
 const handlers = {};
-for (const n of ['shop', 'paypal', 'admin', 'konto']) handlers[n] = (await import(pathToFileURL(path.join(app, 'api', `${n}.js`)))).default;
+for (const n of ['shop', 'paypal', 'admin', 'konto', 'kontakt']) handlers[n] = (await import(pathToFileURL(path.join(app, 'api', `${n}.js`)))).default;
 
 // Beispielplatten anlegen
 const { db, ensureSchema } = await import(pathToFileURL(path.join(app, 'api', '_lib', 'db.js')));
